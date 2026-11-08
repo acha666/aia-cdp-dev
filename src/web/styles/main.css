@@ -33,13 +33,11 @@
 }
 
 /*
- * State variants the nova components use (data-open:, data-active:, group-data-horizontal/tabs:
- * ...). shadcn-vue@2.8.2 ships them in its own package (shadcn-vue/tailwind.css), which neither
- * init nor add imports; without them Tailwind's built-in data-* variants match attributes Reka UI
- * never sets ([data-open] instead of [data-state="open"]), so tabs lose their layout and active
- * state. The five used here are copied verbatim from that file (it also has data-checked:,
- * data-disabled: and others, which no component here uses); the accordion keyframes come from
- * tw-animate-css.
+ * State variants the nova components use (data-open:, data-closed:, data-active:). shadcn-vue@2.8.2
+ * ships them in its own package (shadcn-vue/tailwind.css), which neither init nor add imports;
+ * without them Tailwind's built-in data-* variants match attributes Reka UI never sets
+ * ([data-open] instead of [data-state="open"]), so tabs lose their active state. The three used
+ * here are copied verbatim from that file; the accordion keyframes come from tw-animate-css.
  */
 @custom-variant data-open {
   &:where([data-state="open"]),
@@ -58,18 +56,6 @@
 @custom-variant data-active {
   &:where([data-state="active"]),
   &:where([data-active]:not([data-active="false"])) {
-    @slot;
-  }
-}
-
-@custom-variant data-horizontal {
-  &:where([data-orientation="horizontal"]) {
-    @slot;
-  }
-}
-
-@custom-variant data-vertical {
-  &:where([data-orientation="vertical"]) {
     @slot;
   }
 }

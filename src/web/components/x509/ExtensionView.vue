@@ -6,7 +6,7 @@ import KeyValueList from "@/components/KeyValueList.vue";
 import { AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { CollapsibleContent, CollapsibleRoot, CollapsibleTrigger } from "reka-ui";
 import Asn1Dump from "@/components/x509/Asn1Dump.vue";
 import type { ExtensionDisplay } from "@/x509/extensions";
 
@@ -63,7 +63,7 @@ const { t } = useI18n();
           <p class="mb-1 text-xs text-muted-foreground">{{ t("extension.asn1") }}</p>
           <Asn1Dump :lines="extension.asn1" />
         </div>
-        <Collapsible v-slot="{ open }">
+        <CollapsibleRoot v-slot="{ open }">
           <CollapsibleTrigger as-child>
             <Button variant="ghost" size="xs" class="-ml-2 text-muted-foreground">
               <ChevronRightIcon
@@ -81,7 +81,7 @@ const { t } = useI18n();
               class="mt-1 max-h-32 overflow-auto rounded-md bg-muted/50 p-2 text-xs"
             />
           </CollapsibleContent>
-        </Collapsible>
+        </CollapsibleRoot>
       </template>
     </AccordionContent>
   </AccordionItem>

@@ -19,7 +19,7 @@ import type { PublishedCrl } from "@/client/types";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { CollapsibleContent, CollapsibleRoot, CollapsibleTrigger } from "reka-ui";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -247,7 +247,7 @@ function onFileChange(event: Event) {
           </Button>
         </div>
 
-        <Collapsible v-model:open="tokenOpen">
+        <CollapsibleRoot v-model:open="tokenOpen">
           <CollapsibleTrigger as-child>
             <Button
               type="button"
@@ -281,7 +281,7 @@ function onFileChange(event: Event) {
             />
             <p class="text-xs text-muted-foreground">{{ t("upload.token.hint") }}</p>
           </CollapsibleContent>
-        </Collapsible>
+        </CollapsibleRoot>
       </form>
     </CardContent>
   </Card>
