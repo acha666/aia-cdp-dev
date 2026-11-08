@@ -71,6 +71,7 @@ export function versionOf(file: string): CurrentVersion {
   return { sha256, crlNumber, thisUpdate: new Date(thisUpdate).toISOString() };
 }
 
+/** Imports certificates and applies a config with one target and path per spec. */
 export async function setupPublish(
   store: ObjectStore,
   { certificates = IMPORTED, targets = DEFAULT_TARGETS, configure }: SetupOptions = {}
@@ -116,6 +117,7 @@ export interface PublishRun {
   sleeps: number[];
 }
 
+/** Publishes with a fixed clock and no real sleeps, and returns the single log record. */
 export async function publish(store: ObjectStore, bytes: Uint8Array): Promise<PublishRun> {
   const records: PublishLogRecord[] = [];
   const sleeps: number[] = [];

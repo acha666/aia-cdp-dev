@@ -7,6 +7,7 @@ interface StoredObject {
   etag: string;
 }
 
+/** An in-memory store, for tests. */
 export class MemoryStore implements ObjectStore {
   readonly #objects = new Map<string, StoredObject>();
 

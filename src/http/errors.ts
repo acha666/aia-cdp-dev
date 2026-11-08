@@ -1,3 +1,9 @@
+/**
+ * The JSON error envelope of the API: `{ error: { code, message, details? } }`.
+ *
+ * @packageDocumentation
+ */
+
 import type { Hook, z } from "@hono/zod-openapi";
 import type { Context, Env, ErrorHandler } from "hono";
 import { HTTPException } from "hono/http-exception";
@@ -19,8 +25,10 @@ export const ERROR_MESSAGES = {
   internal: "Internal server error",
 } as const;
 
+/** API answers reflect the current state and must not be cached. */
 export const NO_STORE = { "Cache-Control": "no-store" } as const;
 
+/** An error with a known status and code; thrown by handlers and rendered as the envelope. */
 export class ApiError extends Error {
   readonly status: ContentfulStatusCode;
   readonly code: string;
@@ -42,6 +50,7 @@ const CODE_BY_STATUS: Partial<Record<number, keyof typeof ERROR_MESSAGES>> = {
   415: "unsupported_media_type",
 };
 
+/** Renders every thrown error as the envelope; unexpected ones are logged and become 500. */
 export function createErrorHandler(log: Logger): ErrorHandler {
   const logUnexpected = (err: Error, c: Context) => {
     log({
@@ -79,6 +88,7 @@ export function validationError(target: string, error: z.ZodError): ApiError {
   return new ApiError(400, "bad_request", "Request validation failed", { target, issues });
 }
 
+/** Turns a request that fails its OpenAPI schema into a 400 `bad_request`. */
 export const validationHook: Hook<unknown, Env, string, undefined> = (result) => {
   if (!result.success) {
     throw validationError(result.target, result.error);

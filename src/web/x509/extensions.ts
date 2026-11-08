@@ -1,3 +1,10 @@
+/**
+ * Decodes certificate and CRL extensions for display. Each decoder strictly reads one
+ * extension type into labelled rows; anything it cannot read is shown as an ASN.1 dump.
+ *
+ * @packageDocumentation
+ */
+
 import { Integer } from "asn1js";
 import type { BaseBlock } from "asn1js";
 import * as pkijs from "pkijs";
@@ -66,6 +73,10 @@ export type Section = Row[];
 
 export type FieldKey = keyof typeof en.extension.fields;
 
+/**
+ * A decoded extension. `status` is `parsed` with `sections`, or `unsupported` (no decoder)
+ * or `error` (the decoder failed) with an `asn1` dump.
+ */
 export interface ExtensionDisplay {
   oid: string;
   name: string | undefined;
@@ -193,7 +204,9 @@ function qualifierRow(info: pkijs.PolicyQualifierInfo, i18n: I18nText): Row {
     if (info.policyQualifierId === USER_NOTICE_QUALIFIER) {
       return { label: field("userNotice", i18n), value: userNotice(block) };
     }
-  } catch {}
+  } catch {
+    // Shown as hex below.
+  }
   const id = info.policyQualifierId;
   return { label: oidName(id, POLICY_QUALIFIER_NAMES) ?? id, value: { hex: blockHex(block) } };
 }
@@ -208,6 +221,7 @@ function policies(root: BaseBlock, ctx: Context, names = CERTIFICATE_POLICY_NAME
 
 const lengthAt = (bytes: Uint8Array, at: number) => ((bytes[at] ?? 0) << 8) | (bytes[at + 1] ?? 0);
 
+/** Checks the TLS length prefixes of an SCT list (RFC 6962 3.3) before pkijs reads it. */
 function checkSctFraming(list: Uint8Array): void {
   let at = 2;
   while (at < list.length) {
@@ -231,6 +245,7 @@ function sctSection(sct: pkijs.SignedCertificateTimestamp, ctx: Context): Sectio
   ];
 }
 
+/** Reads an extension value into sections of rows; `undefined` falls back to the dump. */
 type Decoder = (value: BaseBlock, ctx: Context) => Section[] | undefined;
 
 const one = (row: Row | false) => [rows(row)];
@@ -248,6 +263,7 @@ const DECODERS: Record<string, Decoder | undefined> = {
   "2.5.29.15": (value, { row }) => {
     const bits = expectTag(value, BIT_STRING);
     const usages = readBits(bits, KEY_USAGE_FLAGS);
+    // A KeyUsage with no bits set has nothing to list.
     return contents(bits).length === 1 ? undefined : one(row("usages", { tags: usages }));
   },
 
@@ -440,6 +456,7 @@ const DECODERS: Record<string, Decoder | undefined> = {
 
   "1.3.6.1.4.1.311.20.2": (value, { row }) => one(row("templateName", readText(value))),
 
+  // Microsoft CA Version: the certificate index in the low 16 bits, the key index above.
   "1.3.6.1.4.1.311.21.1": (value, { row }) => {
     const version = readInteger(expectTag(value, INTEGER));
     if (version < 0 || version > 0xffffffff) {
@@ -500,6 +517,7 @@ function contextOf(i18n: I18nText): Context {
   };
 }
 
+/** Decodes one extension for the extension list. */
 export function describeExtension(extension: PlainExtension, i18n: I18nText): ExtensionDisplay {
   const { extnID: oid, critical, value } = extension;
   const display: ExtensionDisplay = {
@@ -526,6 +544,7 @@ export interface EntryColumns {
   invalidityDate: string | null;
 }
 
+/** The reason and invalidity date of a revoked entry, for the table columns. */
 export function entryColumns(extensions: readonly PlainExtension[], i18n: I18nText): EntryColumns {
   const columns: EntryColumns = { reason: null, invalidityDate: null };
   for (const { extnID, value } of extensions) {
@@ -536,7 +555,9 @@ export function entryColumns(extensions: readonly PlainExtension[], i18n: I18nTe
       } else if (extnID === "2.5.29.24") {
         columns.invalidityDate = contextOf(i18n).time(expectTag(block, GENERALIZED_TIME));
       }
-    } catch {}
+    } catch {
+      // The column stays empty; the entry's extension list shows the error.
+    }
   }
   return columns;
 }

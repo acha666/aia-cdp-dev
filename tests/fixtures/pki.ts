@@ -1,3 +1,9 @@
+/**
+ * Access to the generated test PKI in `pki/` and its `manifest.json`, which describes each
+ * file and the outcome the tests expect. Regenerate it with `pnpm run fixtures`.
+ *
+ * @packageDocumentation
+ */
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import type { CrlKind } from "../../src/core/catalog.ts";
@@ -7,6 +13,7 @@ export { manifest };
 
 const FIXTURES_DIR = fileURLToPath(new URL("./pki/", import.meta.url));
 
+/** The fixed time the fixtures are valid at. */
 export const NOW = new Date(manifest.now);
 
 type ManifestCertificate = (typeof manifest.certificates)[number];

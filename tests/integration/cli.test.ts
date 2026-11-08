@@ -123,7 +123,7 @@ describe("usage", () => {
     [["--help"], "Usage: aia ", "config"],
     [["help"], "Usage: aia ", "publish"],
     [["config", "--help"], "Usage: aia config ", "validate <file>"],
-    [["config", "apply", "--help"], "Usage: aia config apply ", "If-None-Match: *"],
+    [["config", "apply", "--help"], "Usage: aia config apply ", "as a whole"],
     [["help", "history"], "Usage: aia history ", "--out <file>"],
   ])("prints help for %j without service access", async (argv, usage, detail) => {
     const run = await aia(argv);

@@ -51,6 +51,7 @@ export async function okJson<T = unknown>(
   return parsed;
 }
 
+/** Asserts an API error envelope with `status` and `code`, and returns it. */
 export async function errorOf(
   res: Response,
   status: number,
@@ -68,6 +69,7 @@ export async function errorOf(
   return body.error;
 }
 
+/** Asserts a generic 500 that leaks none of `secrets`. */
 export async function expectInternal(res: Response, ...secrets: string[]): Promise<void> {
   const text = await res.clone().text();
   expect(await errorOf(res, 500, "internal")).toEqual({

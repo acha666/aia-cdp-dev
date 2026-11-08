@@ -1,3 +1,8 @@
+/**
+ * The Node entry point: serves the app with a disk store, configured from the environment.
+ *
+ * @packageDocumentation
+ */
 import { constants, accessSync, readFileSync, statSync } from "node:fs";
 import type { Server } from "node:http";
 import process from "node:process";
@@ -9,6 +14,7 @@ import { FsStore } from "../storage/fs.ts";
 import { createNodeUi } from "./node-ui.ts";
 import { parseSettings, resolveFileVariants } from "./settings.ts";
 
+/** How long open connections may finish after a shutdown signal. */
 const GRACE_MS = 2_000;
 
 async function main(): Promise<void> {

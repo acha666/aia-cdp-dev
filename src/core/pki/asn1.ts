@@ -1,8 +1,15 @@
+/**
+ * Helpers over asn1js blocks: strict times and DER well-formedness.
+ *
+ * @packageDocumentation
+ */
+
 import { BaseBlock, GeneralizedTime, UTCTime } from "asn1js";
 import type { Integer } from "asn1js";
 
 export type Asn1TimeType = "utcTime" | "generalizedTime";
 
+/** A decoded UTCTime or GeneralizedTime with its original text. */
 export interface StrictTime {
   type: Asn1TimeType;
   raw: string;
@@ -13,6 +20,7 @@ export class Asn1TimeError extends Error {
   override name = "Asn1TimeError";
 }
 
+/** Decodes bytes as Latin-1, one character per byte. */
 export function asciiOf(view: Uint8Array): string {
   let text = "";
   for (const byte of view) {
@@ -21,7 +29,9 @@ export function asciiOf(view: Uint8Array): string {
   return text;
 }
 
+/** Returns the text of an ASN.1 string type, or `undefined` for anything else. */
 export function stringOf(block: unknown): string | undefined {
+  // asn1js derives the time types from VisibleString.
   if (!(block instanceof BaseBlock) || block instanceof UTCTime) {
     return undefined;
   }
@@ -43,6 +53,11 @@ function utcDate(
   return date;
 }
 
+/**
+ * Reads a time in the only form RFC 5280 allows: UTC, with seconds and no fraction.
+ *
+ * @throws {@link Asn1TimeError} for any other form or an impossible date.
+ */
 export function readStrictTime(block: BaseBlock): StrictTime {
   if (!(block instanceof UTCTime)) {
     throw new Asn1TimeError("ASN.1 value is not a time");
@@ -54,13 +69,20 @@ export function readStrictTime(block: BaseBlock): StrictTime {
   let canonical: string | undefined;
   try {
     canonical = formatGeneralizedTime(date).slice(isUtc ? 2 : 0);
-  } catch {}
+  } catch {
+    // A date outside 0000-9999 is reported below as an invalid time.
+  }
   if (block.error !== "" || canonical !== raw) {
     throw new Asn1TimeError(`Invalid ASN.1 time: ${JSON.stringify(raw)}`);
   }
   return { type: isUtc ? "utcTime" : "generalizedTime", raw, date };
 }
 
+/**
+ * Formats `date` as `YYYYMMDDHHMMSSZ`.
+ *
+ * @throws RangeError outside the years 0000 to 9999.
+ */
 export function formatGeneralizedTime(date: Date): string {
   const iso = date.toISOString();
   const match = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})\.\d{3}Z$/.exec(iso);
@@ -70,6 +92,11 @@ export function formatGeneralizedTime(date: Date): string {
   return `${match.slice(1).join("")}Z`;
 }
 
+/**
+ * Reads an INTEGER through BigInt, since asn1js's own number is wrong from four octets on.
+ *
+ * @throws RangeError if the value is not a safe JavaScript number.
+ */
 export function integerNumber(block: Integer): number {
   const value = block.toBigInt();
   const limit = BigInt(Number.MAX_SAFE_INTEGER);
@@ -79,6 +106,7 @@ export function integerNumber(block: Integer): number {
   return Number(value);
 }
 
+/** Returns the child blocks of a constructed block, or `[]`. */
 export function children(block: BaseBlock): BaseBlock[] {
   const value: unknown = (block.valueBlock as { value?: unknown }).value;
   return Array.isArray(value)
@@ -97,6 +125,7 @@ const SET = 17;
 
 const NON_EMPTY = new Set([BOOLEAN, INTEGER, BIT_STRING, OBJECT_IDENTIFIER, ENUMERATED]);
 
+/** Returns why `block` itself (not its children) is not DER, if it is not. */
 function derProblem(block: BaseBlock): string | undefined {
   const { idBlock, lenBlock } = block;
   if (idBlock.isHexOnly || idBlock.blockLength !== idBlock.toBER(true).byteLength) {
@@ -119,6 +148,12 @@ function derProblem(block: BaseBlock): string | undefined {
   return undefined;
 }
 
+/**
+ * Checks a decoded tree for decode errors and, when `der` is set, for DER encoding rules
+ * and strict times.
+ *
+ * @throws {@link Asn1TimeError} for a bad time, Error for anything else.
+ */
 export function assertWellFormed(root: BaseBlock, der = true): void {
   const stack: BaseBlock[] = [root];
   while (stack.length > 0) {
@@ -146,6 +181,7 @@ export function assertWellFormed(root: BaseBlock, der = true): void {
   }
 }
 
+/** Names a block's tag for error messages and the ASN.1 dump. */
 export function tagLabel(block: BaseBlock): string {
   const { tagClass, tagNumber, isConstructed } = block.idBlock;
   switch (tagClass) {

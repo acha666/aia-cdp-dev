@@ -1,3 +1,9 @@
+/**
+ * CRL upload: parse, match to a target by Authority Key Identifier, verify the signature
+ * with the target's issuer, check freshness, store the blob and make it current.
+ *
+ * @packageDocumentation
+ */
 import { encodeJson, updateState } from "./catalog.ts";
 import type {
   CatalogDeps,
@@ -24,6 +30,13 @@ import type { ObjectStore } from "./store.ts";
 import { authorityKeyId, buildCrlSummary, readCrlFields } from "./summary.ts";
 import type { CrlFields } from "./summary.ts";
 
+/**
+ * Orders an incoming CRL against the current one: by CRL Number when both have one, then by
+ * thisUpdate.
+ *
+ * @returns `non_orderable` when only one of them has a CRL Number, `conflict` for a
+ * different CRL with the same number and thisUpdate.
+ */
 export function compareFreshness(
   current: Pick<CrlSummary, "crlNumber" | "thisUpdate">,
   incoming: Pick<CrlSummary, "crlNumber" | "thisUpdate">
@@ -46,6 +59,7 @@ export function compareFreshness(
   return order > 0 ? "updated" : "stale_crl";
 }
 
+/** Fields collected along the way for the single log record of an upload. */
 interface Trace {
   targetId?: string;
   kind?: CrlKind;
@@ -103,6 +117,7 @@ export type PublishErrorCode = PublishFailure["error"];
 
 export type PublishResult = PublishSuccess | PublishFailure;
 
+/** Ends an upload with a client-facing failure; `detail` goes to the log only. */
 class Rejection extends Error {
   override name = "Rejection";
   readonly failure: PublishFailure;
@@ -124,6 +139,7 @@ interface Header {
   aki: string | undefined;
 }
 
+/** Parses what is needed to find the target, and applies the policy that needs no issuer. */
 function checkHeader(der: Uint8Array, now: Date, trace: Trace): Header {
   const crl = parseCrlHeader(der);
   const fields = readCrlFields(crl);
@@ -141,6 +157,7 @@ function checkHeader(der: Uint8Array, now: Date, trace: Trace): Header {
   return { crl, fields, kind, aki };
 }
 
+/** Parses the revoked entries too; only reached once the signature is good. */
 async function checkWhole(der: Uint8Array): Promise<CrlSummary> {
   const crl = parseCRL(der);
   const policy = checkEntryPolicy(crl);
@@ -150,6 +167,7 @@ async function checkWhole(der: Uint8Array): Promise<CrlSummary> {
   return buildCrlSummary(crl, der);
 }
 
+/** Finds the target that already serves these exact bytes, which makes the upload a no-op. */
 function alreadyCurrent(state: State, sha256: string): PublishSuccess | undefined {
   for (const [targetId, target] of Object.entries(state.config.targets)) {
     const current = state.catalog.targets[targetId]?.current;
@@ -168,6 +186,11 @@ function alreadyCurrent(state: State, sha256: string): PublishSuccess | undefine
   return undefined;
 }
 
+/**
+ * Finds the one target of `kind` whose issuer's Subject Key Identifier is `aki`.
+ *
+ * @throws Error if several match, which a validated config rules out (rule V6).
+ */
 function resolveTarget(
   state: State,
   aki: string | undefined,
@@ -231,6 +254,10 @@ function currentVersion(current: CurrentCrl): CurrentVersion {
   };
 }
 
+/**
+ * Runs the upload inside {@link updateState}. Parsing and signature checks are cached
+ * across retries; blobs are written once, before the catalog that points at them.
+ */
 async function publish(
   deps: PublishDeps,
   bytes: Uint8Array,
@@ -295,6 +322,7 @@ async function publish(
     if (current !== null) {
       await putOnce(crlHistoryKey(targetId, current.summary, current.sha256), encodeJson(current));
     }
+    // The replaced CRL stays downloadable from the target's history.
     const record: CurrentCrl = {
       sha256,
       key,
@@ -328,6 +356,12 @@ async function publish(
 
 const MAX_DETAIL_CHARS = 500;
 
+/**
+ * Publishes an uploaded CRL (DER or PEM) and logs one record for it.
+ *
+ * @returns The outcome, or a failure the client can act on.
+ * @throws For internal errors (store failures, an inconsistent state), after logging them.
+ */
 export async function publishCrl(deps: PublishDeps, bytes: Uint8Array): Promise<PublishResult> {
   const now = deps.now();
   const started = performance.now();

@@ -1,3 +1,10 @@
+/**
+ * Resolves public download paths and builds their HTTP caching headers.
+ *
+ * Every configured path also serves a PEM variant at `<path>.pem`.
+ *
+ * @packageDocumentation
+ */
 import type { Catalog, Config, ConfigPath, CrlKind } from "./catalog.ts";
 import type { PkiKind } from "./pki/errors.ts";
 import { pemLength } from "./pki/pem.ts";
@@ -18,6 +25,7 @@ export interface FoundDownload {
   lastModified: Date;
 }
 
+/** `inconsistent` means `config.json` names something the catalog does not have. */
 export type DownloadResolution =
   FoundDownload | { status: "not_found" } | { status: "inconsistent"; reference: ConfigPath };
 
@@ -25,6 +33,7 @@ const NOT_FOUND = { status: "not_found" } as const;
 
 const PEM_SUFFIX = ".pem";
 
+/** Resolves a request path against the config and catalog. */
 export function resolveDownload(
   config: Config,
   catalog: Catalog,
@@ -79,6 +88,7 @@ export function resolveDownload(
   };
 }
 
+/** Lists every public path, DER and PEM, that serves `reference`. */
 export function downloadPaths(config: Config, reference: ConfigPath): string[] {
   const matches = ([, entry]: [string, ConfigPath]) =>
     "certificate" in reference
@@ -108,8 +118,10 @@ const DER_CONTENT_TYPES: Record<DownloadKind, string> = {
 
 const PEM_CONTENT_TYPE = "application/x-pem-file";
 
+/** Certificates never change under a path, so they are cached for a year. */
 export const IMMUTABLE = "public, max-age=31536000, immutable";
 
+/** CRL caching follows nextUpdate, within these bounds in seconds. */
 const CRL_MAX_AGE = { min: 60, max: 3600, withoutNextUpdate: 300 } as const;
 
 export function pemKind(kind: DownloadKind): PkiKind {
@@ -144,6 +156,7 @@ export function downloadHeaders(found: FoundDownload, now: Date): DownloadHeader
 
 const stripWeak = (tag: string) => tag.replace(/^W\//, "");
 
+/** Evaluates an `If-None-Match` header with weak comparison, as RFC 9110 requires for GET. */
 export function ifNoneMatchHit(header: string | null | undefined, etag: string): boolean {
   if (header === null || header === undefined) {
     return false;

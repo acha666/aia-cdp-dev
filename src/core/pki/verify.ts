@@ -1,3 +1,9 @@
+/**
+ * CRL signature verification with an allow-list of algorithms: RSA PKCS #1 v1.5, RSASSA-PSS
+ * and ECDSA (on P-256, P-384 or P-521), each with SHA-1, SHA-256, SHA-384 or SHA-512.
+ *
+ * @packageDocumentation
+ */
 import { Any, Null, ObjectIdentifier, Sequence } from "asn1js";
 import type { BaseBlock } from "asn1js";
 import * as pkijs from "pkijs";
@@ -40,6 +46,7 @@ const RSA_ENCRYPTION = "1.2.840.113549.1.1.1";
 const RSASSA_PSS = "1.2.840.113549.1.1.10";
 const EC_PUBLIC_KEY = "1.2.840.10045.2.1";
 
+/** Allowed curves and the byte length of their group order. */
 const ALLOWED_CURVES: ReadonlyMap<string, number> = new Map([
   ["1.2.840.10045.3.1.7", 32],
   ["1.3.132.0.34", 48],
@@ -74,6 +81,7 @@ function pssProblem(params: unknown): string | undefined {
   return undefined;
 }
 
+/** Requires r and s to be minimal positive INTEGERs that fit the curve; pkijs accepts BER. */
 function ecdsaSignatureProblem(signature: Uint8Array, orderLength: number): string | undefined {
   let parts: BaseBlock[];
   try {
@@ -94,6 +102,7 @@ function ecdsaSignatureProblem(signature: Uint8Array, orderLength: number): stri
   return undefined;
 }
 
+/** Checks the algorithm, its parameters and the issuer key before any crypto runs. */
 function admit(
   crl: pkijs.CertificateRevocationList,
   issuerSpki: pkijs.PublicKeyInfo
@@ -148,6 +157,11 @@ function admit(
   return undefined;
 }
 
+/**
+ * Verifies the CRL signature over its TBS bytes with the issuer's public key. pkijs's
+ * `crl.verify()` is not used because it also compares issuer names and rejects critical
+ * extensions it does not know.
+ */
 export async function verifyCrlSignature(
   crl: pkijs.CertificateRevocationList,
   issuerSpki: pkijs.PublicKeyInfo

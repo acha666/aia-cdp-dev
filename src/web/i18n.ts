@@ -12,22 +12,27 @@ export const LOCALE_STORAGE_KEY = "locale-preference";
 
 type MessageSchema = typeof en;
 
+/** The part of vue-i18n that the formatting helpers need, so they can be tested without it. */
 export interface I18nText {
   readonly locale: { readonly value: string };
   readonly t: (key: string, named?: Record<string, unknown>) => string;
   readonly te: (key: string) => boolean;
 }
 
+/** Maps a language tag to a supported locale by its primary language. */
 export function normalizeLocale(tag: string): AppLocale | null {
   const primary = tag.trim().toLowerCase().split(/[-_]/)[0];
   return primary === "zh" ? "zh-CN" : primary === "en" ? "en" : null;
 }
 
+/** Uses the stored choice, then the browser languages, then English. */
 function detectLocale(): AppLocale {
   let stored: string | null = null;
   try {
     stored = localStorage.getItem(LOCALE_STORAGE_KEY);
-  } catch {}
+  } catch {
+    // Storage can be unavailable, e.g. when blocked by privacy settings.
+  }
   const locales = [stored ?? "", ...navigator.languages].map(normalizeLocale);
   return locales.find((locale) => locale !== null) ?? "en";
 }

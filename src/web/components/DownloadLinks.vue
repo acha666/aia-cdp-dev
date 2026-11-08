@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 const props = defineProps<{ downloads: readonly string[] }>();
 
 const links = computed(() => {
+  // File names tell the links apart only when there are several paths.
   const named = props.downloads.filter((href) => !href.endsWith(".pem")).length > 1;
   return props.downloads.map((href) => ({
     href,

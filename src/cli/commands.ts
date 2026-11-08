@@ -1,3 +1,9 @@
+/**
+ * The CLI subcommands. Each returns its exit code and prints text, or JSON with `--json`.
+ *
+ * @packageDocumentation
+ */
+
 import type { z } from "zod";
 import { validateConfig } from "../core/admin.ts";
 import type { ConfigIssue } from "../core/admin.ts";
@@ -14,6 +20,7 @@ function output(ctx: Context, value: unknown, text: string): void {
   ctx.io.stdout(ctx.json ? `${JSON.stringify(value, null, 2)}\n` : text);
 }
 
+/** Formats a JSON path like `paths["/ca/root.crt"].certificate`. */
 function pathText(path: readonly (string | number)[]): string {
   if (path.length === 0) {
     return "(document)";
@@ -53,6 +60,7 @@ function failedItem(where: Where, error: unknown): ItemFailure {
 
 type UploadBody = Uint8Array | string;
 
+/** Formats error details for one line of output; `reason` is already in the message. */
 function detailsText(details: unknown): string {
   if (typeof details !== "object" || details === null) {
     return "";
@@ -95,6 +103,12 @@ async function postItem(
   }
 }
 
+/**
+ * Imports certificates or publishes CRLs, one request per certificate or CRL. A failure
+ * does not stop the remaining files.
+ *
+ * @returns 0 if every upload succeeded, else 1.
+ */
 export async function uploadFiles(
   ctx: Context,
   files: readonly string[],
@@ -145,6 +159,7 @@ export async function uploadFiles(
   return summary.failed === 0 ? 0 : 1;
 }
 
+/** The API takes one certificate per request, so a PEM bundle is split into its blocks. */
 function certificateBodies(bytes: Uint8Array): UploadBody[] {
   const text = new TextDecoder().decode(bytes);
   if (isDerSequence(bytes) || !text.includes("-----BEGIN ")) {
@@ -192,6 +207,7 @@ async function loadConfigFile(io: CliIo, file: string): Promise<unknown> {
   }
 }
 
+/** Runs the checks that need no service; the rest happen on apply. */
 export async function configValidate(ctx: Context, file: string): Promise<number> {
   const checked = validateConfig(await loadConfigFile(ctx.io, file));
   if (!ctx.json && !checked.ok) {
@@ -207,6 +223,7 @@ export async function configValidate(ctx: Context, file: string): Promise<number
   return checked.ok ? 0 : 1;
 }
 
+/** Validates locally, then replaces the stored config conditionally on its current ETag. */
 export async function configApply(ctx: Context, file: string): Promise<number> {
   const checked = validateConfig(await loadConfigFile(ctx.io, file));
   if (!checked.ok) {
@@ -325,6 +342,7 @@ export function newTargetId(ctx: Context): number {
   return 0;
 }
 
+/** @returns 0 only if the service reports `healthy`. */
 export async function health(ctx: Context): Promise<number> {
   const api = await createClient(ctx, "public");
   const reply = await api("/health");

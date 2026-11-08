@@ -1,8 +1,11 @@
+/** @throws Error if the browser refuses both clipboard methods. */
 export async function copyText(text: string): Promise<void> {
   try {
     await navigator.clipboard.writeText(text);
     return;
-  } catch {}
+  } catch {
+    // The Clipboard API needs a secure context; fall back to execCommand.
+  }
   if (!legacyCopy(text)) {
     throw new Error("The browser refused to copy to the clipboard.");
   }

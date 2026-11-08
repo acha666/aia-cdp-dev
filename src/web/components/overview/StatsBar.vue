@@ -33,6 +33,7 @@ const tiles = computed(() => {
   const configured = count(targetList);
   const publishedList = targetList.filter((target) => target.current !== null);
   const published = count(publishedList);
+  // Delta CRLs repeat entries of their base CRL, so only full CRLs are counted.
   const fullCrls = publishedList.filter((target) => target.kind === "full");
   const revocations = fullCrls.reduce(
     (sum, target) => sum + (target.current?.summary.revokedCount ?? 0),

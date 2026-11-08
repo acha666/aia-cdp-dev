@@ -2,6 +2,10 @@ import { z } from "zod";
 import { InvalidStoredObjectError, readState } from "./catalog.ts";
 import type { ObjectStore } from "./store.ts";
 
+/**
+ * The health report: `degraded` while the config is missing or invalid (downloads fail),
+ * `unhealthy` when the store cannot be read.
+ */
 export const Health = z
   .object({
     status: z.enum(["healthy", "degraded", "unhealthy"]),
@@ -20,6 +24,7 @@ const UNHEALTHY: HealthReport = {
   checks: { store: "error", configuration: "unknown" },
 };
 
+/** Reads the store state; `onStoreError` receives the error behind an `unhealthy` report. */
 export async function checkHealth(
   store: ObjectStore,
   onStoreError: (error: unknown) => void

@@ -50,6 +50,7 @@ async function etagOf(store: ObjectStore, key: string, value: string): Promise<s
 
 const REFUSED = { ok: false, reason: "precondition-failed" };
 
+/** The behaviour every {@link ObjectStore} must have, run against each backend. */
 export function describeObjectStore(
   name: string,
   factory: () => ObjectStore | Promise<ObjectStore>

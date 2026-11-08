@@ -6,6 +6,7 @@ function mediaType(contentType: string | undefined): string | undefined {
   return type === "" ? undefined : type;
 }
 
+/** Rejects a request body whose Content-Type is not one of `accepted` with 415. */
 export function mediaTypeGate(accepted: readonly string[], message: string) {
   return createMiddleware(async (c, next) => {
     const type = mediaType(c.req.header("Content-Type"));

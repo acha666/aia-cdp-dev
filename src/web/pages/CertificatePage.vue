@@ -95,6 +95,7 @@ const PANEL = "rounded-md pt-2 focus-visible:ring-3 focus-visible:ring-ring/50";
         <DownloadLinks :downloads="data.downloads" />
       </header>
 
+      <!-- Keyed by id, so another certificate opens on its overview tab. -->
       <Tabs :key="id" default-value="overview" class="min-w-0">
         <TabsList class="max-w-full justify-start overflow-x-auto overflow-y-hidden">
           <TabsTrigger value="overview">{{ t("details.tabs.overview") }}</TabsTrigger>

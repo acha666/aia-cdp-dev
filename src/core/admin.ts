@@ -1,3 +1,8 @@
+/**
+ * Validation and conditional replacement of `config.json`.
+ *
+ * @packageDocumentation
+ */
 import type { z } from "zod";
 import {
   certificateReferences,
@@ -11,6 +16,20 @@ import type { Catalog, Config, CrlKind } from "./catalog.ts";
 import { sha256Hex } from "./digest.ts";
 import type { ObjectStore } from "./store.ts";
 
+/**
+ * One reason a config is rejected. `rule` names the check that failed:
+ *
+ * - V1: the document does not match the schema.
+ * - V2: a path is not `/ca/`, `/crl/` or `/dcrl/` followed by safe segments, or ends in `.pem`.
+ * - V3: a path's prefix does not match what it serves: `/ca/` a certificate, `/crl/` a full
+ *   CRL target, `/dcrl/` a delta CRL target.
+ * - V4: a path names an unknown target, or a certificate that has not been imported.
+ * - V5: a target's issuer has no Subject Key Identifier, so no CRL can be matched to it.
+ * - V6: two targets of the same kind share an issuer, or issuers with the same Subject Key
+ *   Identifier.
+ * - V7: a `/ca/` path changes to another certificate, which clients may have cached for a year.
+ * - V9: a target changes its issuer or kind.
+ */
 export interface ConfigIssue {
   path: (string | number)[];
   rule: "V1" | "V2" | "V3" | "V4" | "V5" | "V6" | "V7" | "V9";
@@ -32,6 +51,7 @@ const PATH_SYNTAX_MESSAGE =
   "Expected /ca/, /crl/ or /dcrl/ followed by segments of [A-Za-z0-9._~-] " +
   "(no empty segment, trailing /, % or other character)";
 
+// `.pem` is reserved for the PEM variant of every path.
 function pathSyntaxProblem(path: string): string | undefined {
   if (!PATH_SYNTAX.test(path)) {
     return PATH_SYNTAX_MESSAGE;
@@ -106,6 +126,7 @@ function staticIssues(config: Config): ConfigIssue[] {
   return issues;
 }
 
+/** Turns schema errors into V1 issues. */
 export function schemaIssues(error: z.ZodError): ConfigIssue[] {
   return error.issues.map((issue) => ({
     path: issue.path.map((key) => (typeof key === "symbol" ? String(key) : key)),
@@ -117,6 +138,7 @@ export function schemaIssues(error: z.ZodError): ConfigIssue[] {
   }));
 }
 
+/** Rules that depend on the catalog (V4, V5, V6). */
 function checkConfigState(config: Config, catalog: Catalog): ConfigIssue[] {
   const issues: ConfigIssue[] = certificateReferences(config)
     .filter(({ id }) => catalog.certificates[id] === undefined)
@@ -158,6 +180,7 @@ function checkConfigState(config: Config, catalog: Catalog): ConfigIssue[] {
   return issues;
 }
 
+/** Rules that compare with the config being replaced (V7, V9). */
 function checkConfigMigration(config: Config, current: Config | undefined): ConfigIssue[] {
   if (current === undefined) {
     return [];
@@ -201,6 +224,10 @@ export interface ValidationContext {
   current?: Config | undefined;
 }
 
+/**
+ * Validates a config document. Without `context`, only the rules that need no store state
+ * run, which is what offline validation uses.
+ */
 export function validateConfig(value: unknown, context?: ValidationContext): ConfigCheck {
   const parsed = ConfigSchema.safeParse(value);
   if (!parsed.success) {
@@ -227,6 +254,7 @@ export type ApplyConfigResult =
   | { error: "precondition_failed" }
   | { error: "config_invalid"; details: { issues: ConfigIssue[] } };
 
+// An invalid stored config can still be replaced; the migration rules are skipped.
 function parseCurrent(bytes: Uint8Array): Config | undefined {
   try {
     return ConfigSchema.parse(decodeJson(bytes));
@@ -235,6 +263,11 @@ function parseCurrent(bytes: Uint8Array): Config | undefined {
   }
 }
 
+/**
+ * Replaces `config.json` if `precondition` holds and the new config is valid.
+ *
+ * `ifMatch` is the SHA-256 of the stored config, as served by `GET /admin/config`.
+ */
 export async function applyConfig(
   deps: { store: ObjectStore },
   body: unknown,

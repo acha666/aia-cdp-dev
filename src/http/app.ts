@@ -26,6 +26,11 @@ const OPENAPI_CONFIG = {
   ],
 };
 
+/**
+ * Builds the HTTP application shared by the Node server and the Worker: the JSON API under
+ * `/api/v1`, public downloads under `/ca/`, `/crl/` and `/dcrl/`, and the web UI for
+ * everything else.
+ */
 export function createApp(deps: AppDeps) {
   const app = new OpenAPIHono({ defaultHook: validationHook });
 
@@ -45,6 +50,7 @@ export function createApp(deps: AppDeps) {
     });
   });
 
+  // Only the public read routes are part of the type the web client is generated from.
   const routes = app
     .route("/api/v1", healthRoutes(deps))
     .route("/api/v1", certificateRoutes(deps))
@@ -54,4 +60,5 @@ export function createApp(deps: AppDeps) {
   return routes;
 }
 
+/** The type of the public API, for Hono's typed client in the web UI. */
 export type AppType = ReturnType<typeof createApp>;

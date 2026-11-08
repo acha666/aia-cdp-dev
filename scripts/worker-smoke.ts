@@ -1,3 +1,10 @@
+/**
+ * Runs the built Worker (`dist/worker`) locally with wrangler and checks configuration,
+ * downloads (`scripts/smoke.sh`) and CRL uploads against it.
+ *
+ * @packageDocumentation
+ */
+
 import { spawn } from "node:child_process";
 import { once } from "node:events";
 import { fileURLToPath } from "node:url";

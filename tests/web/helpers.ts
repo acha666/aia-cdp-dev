@@ -165,6 +165,7 @@ export function testQueryClient(): QueryClient {
   return client;
 }
 
+/** Mounts the whole app at `path`, with the API stubbed by the caller. */
 export async function mountApp(path: string) {
   const router = createAppRouter(createMemoryHistory());
   await router.push(path);
@@ -190,6 +191,7 @@ export function envelope(status: number, code: string, details?: unknown): Respo
 
 export type Handler = (init: RequestInit | undefined) => Response | Promise<Response>;
 
+/** Stubs `fetch` with handlers keyed by `"METHOD /path"`; anything else is a 404 envelope. */
 export function stubApi(routes: Record<string, Handler | undefined>) {
   const keyOf = (input: RequestInfo | URL, init?: RequestInit) => {
     const url = new URL(input instanceof Request ? input.url : input.toString(), "http://test");

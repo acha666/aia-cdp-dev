@@ -722,7 +722,7 @@
             }
           },
           "500": {
-            "description": "The store failed, or it cannot back what catalog.json and config.json name (logged, never sent); retry later",
+            "description": "The store failed or is inconsistent; the cause is logged",
             "content": {
               "application/json": {
                 "schema": {
@@ -794,7 +794,7 @@
             }
           },
           "500": {
-            "description": "The store failed, or it cannot back what catalog.json and config.json name (logged, never sent); retry later",
+            "description": "The store failed or is inconsistent; the cause is logged",
             "content": {
               "application/json": {
                 "schema": {
@@ -829,7 +829,7 @@
             }
           },
           "500": {
-            "description": "The store failed, or it cannot back what catalog.json and config.json name (logged, never sent); retry later",
+            "description": "The store failed or is inconsistent; the cause is logged",
             "content": {
               "application/json": {
                 "schema": {
@@ -843,7 +843,7 @@
       "post": {
         "operationId": "uploadCrl",
         "summary": "Publish a CRL",
-        "description": "One CRL, DER or a single X509 CRL PEM block, as the request body; the format is recognized from the bytes. It goes to the target that the configuration binds to its issuer (found by the Authority Key Identifier) and its kind (full or delta), once the extension policy, the issuer's signature and the comparison with the target's current CRL accept it. `Authorization: Bearer <AIA_UPLOAD_TOKEN>` is needed only while that token is set.",
+        "description": "One CRL as the request body, DER or a single X509 CRL PEM block. It is published to the target of its kind (full or delta) whose issuer's Subject Key Identifier matches the CRL's Authority Key Identifier, once the issuer's signature verifies and the CRL is newer than the target's current one. `Authorization: Bearer <AIA_UPLOAD_TOKEN>` is required only when that token is set.",
         "tags": [
           "crls"
         ],
@@ -965,7 +965,7 @@
             }
           },
           "500": {
-            "description": "The store failed, or it cannot back what catalog.json and config.json name (logged, never sent); retry later",
+            "description": "The store failed or is inconsistent; the cause is logged",
             "content": {
               "application/json": {
                 "schema": {
@@ -1118,7 +1118,7 @@
       "delete": {
         "operationId": "deleteCertificate",
         "summary": "Delete a CA certificate",
-        "description": "Removes an imported certificate and its blob, unless config.json or the current CRL of a target (also of one removed from config.json) references it: then 409 `referenced` with `details.references`. The verifier of a target's current CRL stays referenced, also once the target is removed.",
+        "description": "Removes an imported certificate and its blob, unless config.json names it or it verified the current CRL of a target, including a target removed from config.json: then 409 `referenced` with `details.references`.",
         "tags": [
           "admin"
         ],
@@ -1209,7 +1209,7 @@
       "get": {
         "operationId": "getCrlHistory",
         "summary": "List a CRL target's history",
-        "description": "Every version that was published as the target's current CRL, newest first: the superseded ones and the current one, also for a target removed from config.json (retired). Blobs that a lost publish race left behind are not history.",
+        "description": "Every version that was published as the target's current CRL, newest first, including for a target removed from config.json.",
         "tags": [
           "admin"
         ],
@@ -1405,7 +1405,7 @@
       "get": {
         "operationId": "getConfig",
         "summary": "Read config.json",
-        "description": "The stored bytes as they are, also when an out-of-band write left them invalid (so that they can be repaired). The ETag is the SHA-256 of those bytes, for `If-Match` on PUT.",
+        "description": "The stored bytes as they are, even if they are invalid, so they can be repaired. The ETag is the SHA-256 of those bytes, for `If-Match` on PUT.",
         "tags": [
           "admin"
         ],
@@ -1579,7 +1579,7 @@
             }
           },
           "412": {
-            "description": "The precondition does not hold (another apply came first, or W/ / list / *)",
+            "description": "The stored config changed since GET, or If-Match is not a single strong ETag",
             "content": {
               "application/json": {
                 "schema": {

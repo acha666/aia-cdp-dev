@@ -6,6 +6,7 @@ interface R2ConditionalLike {
   etagDoesNotMatch?: string;
 }
 
+/** The part of the R2 bucket binding that {@link R2Store} uses. */
 export interface R2BucketLike {
   get(key: string): Promise<{ etag: string; arrayBuffer(): Promise<ArrayBuffer> } | null>;
   put(
@@ -21,6 +22,7 @@ export interface R2BucketLike {
   delete(key: string): Promise<void>;
 }
 
+/** Stores objects in a Cloudflare R2 bucket, using R2's conditional puts. */
 export class R2Store implements ObjectStore {
   readonly #bucket: R2BucketLike;
 

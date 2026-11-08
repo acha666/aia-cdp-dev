@@ -16,6 +16,7 @@ const { t } = useI18n();
       v-model="locale"
       class="h-6 cursor-pointer rounded-sm bg-transparent pr-1 pl-6 outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
     >
+      <!-- Chrome and Firefox on Windows draw the open list with the options' colours. -->
       <option
         v-for="code in SUPPORTED_LOCALES"
         :key="code"

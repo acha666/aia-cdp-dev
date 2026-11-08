@@ -1,3 +1,10 @@
+/**
+ * HTTP and I/O for the CLI commands.
+ *
+ * @packageDocumentation
+ */
+
+/** Everything the CLI touches outside itself, so tests can replace it. */
 export interface CliIo {
   fetch: (url: string, init: RequestInit) => Promise<Response>;
   env: Readonly<Record<string, string | undefined>>;
@@ -7,10 +14,12 @@ export interface CliIo {
   writeFile: (path: string, bytes: Uint8Array) => Promise<void>;
 }
 
+/** A mistake in the command line or its environment (exit code 2). */
 export class UsageError extends Error {
   override name = "UsageError";
 }
 
+/** The command ran and failed (exit code 1). */
 export class Failure extends Error {
   override name = "Failure";
 }
@@ -47,6 +56,7 @@ export function reasonOf(error: unknown): string {
 
 const REQUEST_TIMEOUT_MS = 30_000;
 
+// Checked before sending, since fetch rejects an invalid header value with an error that quotes it.
 const BEARER_TOKEN = /^[A-Za-z0-9._~+/-]+=*$/;
 
 function parsedServiceUrl(ctx: Context): URL {
@@ -63,6 +73,7 @@ function parsedServiceUrl(ctx: Context): URL {
   return url;
 }
 
+// Covers the hosts whose traffic stays on this machine.
 function isLoopback(hostname: string): boolean {
   return (
     hostname === "localhost" || hostname === "[::1]" || /^127(?:\.[0-9]{1,3}){3}$/.test(hostname)
@@ -78,6 +89,10 @@ function checkTokenTransport(ctx: Context, name: string, url: URL): void {
   }
 }
 
+/**
+ * Reads the token for `name` from `--token-file`, `<VAR>_FILE` or `<VAR>`, in that order,
+ * and refuses to send it over plain HTTP to another host.
+ */
 async function bearerToken(
   ctx: Context,
   name: "admin" | "upload",
@@ -115,6 +130,10 @@ async function bearerToken(
   return token;
 }
 
+/**
+ * Returns a function that sends requests to the API under the service URL. An admin client
+ * requires a token; an upload client sends one if it is set.
+ */
 export async function createClient(ctx: Context, access: "admin" | "upload" | "public" = "admin") {
   const url = parsedServiceUrl(ctx);
   const base = `${url.origin}${url.pathname.replace(/\/+$/, "")}/api/v1`;
@@ -183,6 +202,7 @@ export interface HttpError {
   details?: unknown;
 }
 
+/** Reads the API error envelope, falling back to the HTTP status. */
 function httpError(reply: Pick<Response, "status" | "statusText"> & { text: string }): HttpError {
   try {
     const { error } = JSON.parse(reply.text) as { error?: Record<string, unknown> };
@@ -194,7 +214,9 @@ function httpError(reply: Pick<Response, "status" | "statusText"> & { text: stri
         ...(error.details === undefined ? {} : { details: error.details }),
       };
     }
-  } catch {}
+  } catch {
+    // Not the API's error envelope.
+  }
   return { status: reply.status, message: reply.statusText || "unexpected response" };
 }
 

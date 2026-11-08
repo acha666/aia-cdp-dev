@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# Checks a running, configured service at BASE_URL: downloads, a CRL upload, the API, the
+# web UI and path traversal. Set AIA_UPLOAD_TOKEN if the service requires it.
 set -uo pipefail
 
 if ! [[ $# -eq 1 && $1 =~ ^https?://[^/]+/?$ ]]; then

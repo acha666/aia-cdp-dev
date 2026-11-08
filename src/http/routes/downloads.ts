@@ -9,6 +9,10 @@ import { textNotFound } from "../ui.ts";
 
 const DOWNLOAD_ROUTES = ["/ca/*", "/crl/*", "/dcrl/*"] as const;
 
+/**
+ * Serves a configured path, or its `.pem` variant. Conditional and HEAD requests are answered
+ * from the catalog, without reading the blob.
+ */
 async function serveDownload(c: Context, deps: AppDeps): Promise<Response> {
   const path = c.req.path;
   const { config, catalog } = await readState(deps.store);
@@ -37,6 +41,7 @@ async function serveDownload(c: Context, deps: AppDeps): Promise<Response> {
   return c.body(body, 200, { ...headers, "Content-Length": String(body.byteLength) });
 }
 
+/** The public AIA and CDP downloads. Hono answers HEAD with the GET handler. */
 export function downloadRoutes(deps: AppDeps) {
   const downloads = new Hono();
   for (const path of DOWNLOAD_ROUTES) {

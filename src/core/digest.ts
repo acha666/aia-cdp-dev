@@ -5,6 +5,7 @@ export const toHex = (input: ArrayBuffer | Uint8Array) =>
 
 export const toUpperHex = (input: ArrayBuffer | Uint8Array) => toHex(input).toUpperCase();
 
+/** Returns a view that `crypto.subtle` accepts, copying only a view of a `SharedArrayBuffer`. */
 export const toDigestInput = (input: ArrayBuffer | Uint8Array): Uint8Array<ArrayBuffer> =>
   input instanceof Uint8Array && input.buffer instanceof ArrayBuffer
     ? (input as Uint8Array<ArrayBuffer>)

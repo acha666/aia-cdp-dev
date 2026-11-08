@@ -1,3 +1,10 @@
+/**
+ * Importing and deleting CA certificates. An imported certificate can be used as a CRL issuer
+ * and served under `/ca/` paths.
+ *
+ * @packageDocumentation
+ */
+
 import { certificateBlobKey, certificateReferences, readCatalog, updateState } from "./catalog.ts";
 import type { CatalogCertificate, CatalogDeps, CertificateSummary, State } from "./catalog.ts";
 import { sha256Hex } from "./digest.ts";
@@ -22,6 +29,7 @@ export type ImportResult =
   | { error: "invalid_certificate"; details: { reason: PkiParseReason } }
   | { error: "concurrent_update"; id: string };
 
+/** Imports a certificate (DER or PEM); importing it again is `unchanged`. */
 export async function importCertificate(
   deps: ImportDeps,
   bytes: Uint8Array
@@ -72,6 +80,7 @@ export async function importCertificate(
   return { ...update, id };
 }
 
+/** Where a certificate that cannot be deleted is still used. */
 export interface CertificateReference {
   object: "config.json" | "catalog.json";
   path: string[];
@@ -98,6 +107,10 @@ function referencesOf(state: State, id: string): CertificateReference[] {
   return references;
 }
 
+/**
+ * Deletes a certificate that nothing references: no config entry and no current CRL it
+ * verified.
+ */
 export async function deleteCertificate(
   deps: CatalogDeps,
   id: string
@@ -117,6 +130,7 @@ export async function deleteCertificate(
   if (!("key" in outcome)) {
     return outcome;
   }
+  // The blob goes only after the catalog no longer points at it.
   await deps.store.delete(outcome.key);
   return { deleted: true };
 }

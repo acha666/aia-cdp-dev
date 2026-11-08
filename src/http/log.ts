@@ -2,6 +2,7 @@ import { createMiddleware } from "hono/factory";
 
 type LogLevel = "info" | "warn" | "error";
 
+/** A structured log record; runtimes print it as one JSON line. */
 export interface LogRecord {
   level: LogLevel;
   msg: string;
@@ -10,6 +11,7 @@ export interface LogRecord {
 
 export type Logger = (record: LogRecord) => void;
 
+/** Makes an error loggable as JSON. */
 export function describeError(
   error: unknown,
   options: { stack?: boolean } = {}
@@ -22,6 +24,7 @@ export function describeError(
   return { name: typeof error, message: String(error) };
 }
 
+/** Logs one record per request. */
 export function requestLog(log: Logger) {
   return createMiddleware(async (c, next) => {
     const start = performance.now();

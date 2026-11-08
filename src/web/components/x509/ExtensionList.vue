@@ -16,6 +16,7 @@ const label = (extension: ExtensionDisplay) => extension.name ?? extension.oid;
 
 const items = computed(() => {
   const sorted = props.extensions.map((extension) => describeExtension(extension, i18n));
+  // Critical extensions first, then by name.
   sorted.sort((a, b) => {
     if (a.critical !== b.critical) {
       return a.critical ? -1 : 1;

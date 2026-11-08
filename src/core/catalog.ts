@@ -1,9 +1,20 @@
+/**
+ * The two JSON documents at the root of the store and their schemas.
+ *
+ * `config.json` is written by the operator and says what is published: certificate labels,
+ * CRL targets (one per issuer and kind) and the public paths that serve them.
+ * `catalog.json` is written by the service and records what has been uploaded: imported
+ * certificates and the current CRL of each target.
+ *
+ * @packageDocumentation
+ */
 import { z } from "zod";
 import type { ObjectStore } from "./store.ts";
 
 export const CONFIG_KEY = "config.json";
 export const CATALOG_KEY = "catalog.json";
 
+/** Certificates are identified by the SHA-256 of their DER encoding. */
 export const Sha256Hex = z.string().regex(/^[0-9a-f]{64}$/, "Expected lowercase hex SHA-256");
 
 const Sha1Hex = z.string().regex(/^[0-9a-f]{40}$/, "Expected lowercase hex SHA-1");
@@ -21,6 +32,7 @@ export const Timestamp = z.iso.datetime({ precision: 3 });
 
 const Decimal = z.string().regex(/^(?:0|[1-9][0-9]*)$/, "Expected a decimal integer");
 
+/** CRL target ids are chosen by the operator; lowercase keeps them unique as store keys. */
 export const TargetId = z.uuid().regex(/^[0-9a-f-]+$/, "Expected a lowercase UUID");
 
 export const CrlKind = z.enum(["full", "delta"]);
@@ -30,6 +42,7 @@ const ConfigCertificate = z.strictObject({ label: z.string() });
 
 const ConfigTarget = z.strictObject({ issuer: Sha256Hex, kind: CrlKind, label: z.string() });
 
+/** A public path serves either an imported certificate or the current CRL of a target. */
 const ConfigPath = z.union(
   [z.strictObject({ certificate: Sha256Hex }), z.strictObject({ target: TargetId })],
   { error: "Expected { certificate: <lowercase hex SHA-256> } or { target: <lowercase UUID> }" }
@@ -48,6 +61,7 @@ export type Config = z.infer<typeof ConfigSchema>;
 export type ConfigTarget = z.infer<typeof ConfigTarget>;
 export type ConfigPath = z.infer<typeof ConfigPath>;
 
+/** Lists every place in `config` that names a certificate id, with its JSON path. */
 export function certificateReferences(config: Config): { id: string; path: string[] }[] {
   return [
     ...Object.keys(config.certificates).map((id) => ({ id, path: ["certificates", id] })),
@@ -95,6 +109,7 @@ export const CrlSummarySchema = z
   })
   .meta({ id: "CrlSummary" });
 
+/** `verifier` is the certificate whose key verified the CRL signature. */
 const CurrentCrl = z.strictObject({
   sha256: Sha256Hex,
   key: z.string(),
@@ -136,11 +151,17 @@ export function encodeJson(value: unknown): Uint8Array {
   return new TextEncoder().encode(`${JSON.stringify(value, null, 2)}\n`);
 }
 
+/**
+ * Decodes strict UTF-8 JSON.
+ *
+ * @throws Error on invalid UTF-8 or JSON.
+ */
 export function decodeJson(bytes: Uint8Array): unknown {
   const text = new TextDecoder("utf-8", { fatal: true, ignoreBOM: false }).decode(bytes);
   return JSON.parse(text) as unknown;
 }
 
+/** `config.json` or `catalog.json` exists but does not match its schema. */
 export class InvalidStoredObjectError extends Error {
   override name = "InvalidStoredObjectError";
   readonly key: string;
@@ -159,6 +180,7 @@ function parseStored<T>(key: string, bytes: Uint8Array, schema: z.ZodType<T>): T
   }
 }
 
+/** Reads `catalog.json`; a missing catalog is empty and has no ETag. */
 export async function readCatalog(
   store: ObjectStore
 ): Promise<{ catalog: Catalog; etag: string | null }> {
@@ -176,6 +198,11 @@ export interface State {
   catalogEtag: string | null;
 }
 
+/**
+ * Reads both documents; a missing config is empty and reported by `hasConfig`.
+ *
+ * @throws {@link InvalidStoredObjectError} if either document is invalid.
+ */
 export async function readState(store: ObjectStore): Promise<State> {
   const [configObject, { catalog, etag: catalogEtag }] = await Promise.all([
     store.get(CONFIG_KEY),
@@ -194,6 +221,7 @@ function realSleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+/** The outcome of one {@link updateState} attempt: `next` is the catalog to write, if any. */
 export interface CatalogMutation<R> {
   next?: Catalog;
   result: R;
@@ -204,6 +232,16 @@ export interface CatalogDeps {
   sleep?: (ms: number) => Promise<void>;
 }
 
+/**
+ * Runs an optimistic read-modify-write of `catalog.json`.
+ *
+ * `mutate` sees a fresh state on every attempt, so it must not depend on an earlier one.
+ * The write is conditional on the ETag that was read, and is retried with backoff when
+ * another writer got there first.
+ *
+ * @returns The result of the attempt that wrote (or needed no write), or
+ * `concurrent_update` once the retries are used up.
+ */
 export async function updateState<R>(
   { store, sleep = realSleep }: CatalogDeps,
   mutate: (state: State) => CatalogMutation<R> | Promise<CatalogMutation<R>>

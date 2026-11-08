@@ -47,6 +47,7 @@ export default defineConfig(
     },
   },
   {
+    // The browser bundle may share only the PKI code with the server.
     files: ["src/web/**"],
     rules: {
       "@typescript-eslint/no-restricted-imports": [

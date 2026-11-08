@@ -69,6 +69,7 @@ function openToken() {
   tokenFocused.value = true;
 }
 
+// Moves focus to the result, unless the user has moved it elsewhere meanwhile.
 async function focusResult(alert: typeof successAlert) {
   const active = document.activeElement;
   if (active !== null && active !== document.body && active !== submitButton.value?.$el) {
@@ -98,6 +99,7 @@ async function submit() {
       t(`upload.kindTarget.${published.kind}`);
     const message = t(`upload.outcome.${published.outcome}`, { target });
     success.value = { message, published };
+    // Keep a CRL that was chosen while this one was uploading.
     if (input.value === submitted) {
       clear();
     }

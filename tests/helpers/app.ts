@@ -15,6 +15,7 @@ function defaultSettings(): AppSettings {
   return parsed.value.app;
 }
 
+/** App dependencies with a memory store, a fixed clock and captured log lines. */
 export interface TestDeps extends AppDeps {
   lines: string[];
 }
@@ -42,6 +43,7 @@ export function logRecords(deps: Pick<TestDeps, "lines">): LogRecord[] {
   return deps.lines.map((line) => JSON.parse(line) as LogRecord);
 }
 
+/** A store that replaces some methods of `base`. */
 export function patchStore(patch: Partial<ObjectStore>, base: ObjectStore = new MemoryStore()) {
   return {
     get: patch.get ?? ((key) => base.get(key)),

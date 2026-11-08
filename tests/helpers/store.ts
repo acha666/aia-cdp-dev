@@ -10,6 +10,7 @@ export interface RecordingStore extends ObjectStore {
   writes: StoreWrite[];
 }
 
+/** A store that records every write. */
 export function recordingStore(base: ObjectStore = new MemoryStore()): RecordingStore {
   const writes: StoreWrite[] = [];
   return {
@@ -42,6 +43,7 @@ export interface FlakyOptions {
   putError?: Error;
 }
 
+/** A store whose first `failIfMatch` conditional writes fail, or whose writes all throw. */
 export function flakyStore(base: ObjectStore, options: FlakyOptions): ObjectStore {
   let failures = options.failIfMatch ?? 0;
   return patchStore(
@@ -61,6 +63,7 @@ export function flakyStore(base: ObjectStore, options: FlakyOptions): ObjectStor
   );
 }
 
+/** A store that runs `rival` just before the first catalog write. */
 export function racingStore(base: ObjectStore, rival: () => Promise<unknown>): ObjectStore {
   let raced = false;
   return patchStore(
@@ -77,6 +80,7 @@ export function racingStore(base: ObjectStore, rival: () => Promise<unknown>): O
   );
 }
 
+/** A store whose ETags are not content hashes, like R2's. */
 export function opaqueEtagStore(base: ObjectStore = new MemoryStore()): ObjectStore {
   const wrap = (etag: string) => `store:${etag}`;
   return patchStore(

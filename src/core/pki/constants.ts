@@ -1,3 +1,4 @@
+/** Display names of algorithm OIDs, for API details and log messages. */
 export const SIGNATURE_ALG_NAMES: Record<string, string> = {
   "1.2.840.113549.1.1.2": "md2WithRSAEncryption",
   "1.2.840.113549.1.1.4": "md5WithRSAEncryption",

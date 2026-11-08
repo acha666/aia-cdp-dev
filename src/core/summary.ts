@@ -1,3 +1,9 @@
+/**
+ * Extracts the catalog summaries of certificates and CRLs.
+ *
+ * @packageDocumentation
+ */
+
 import type {
   Certificate,
   CertificateRevocationList,
@@ -17,11 +23,13 @@ import {
 } from "./pki/extensions.ts";
 import type { WholeCrl } from "./pki/parsers.ts";
 
+/** Microsoft's Next CRL Publish extension, written by AD CS. */
 export const NEXT_CRL_PUBLISH_OID = "1.3.6.1.4.1.311.21.4";
 
 const findExtension = (extensions: Extension[] | undefined, oid: string) =>
   extensions?.find((extension) => extension.extnID === oid);
 
+/** Decodes an extension value, reporting failures as `extension_value` parse errors. */
 function readExtension<T>(
   kind: PkiKind,
   name: string,
@@ -37,6 +45,7 @@ function readExtension<T>(
   }
 }
 
+/** Returns the hex keyIdentifier of the Authority Key Identifier extension, if present. */
 export function authorityKeyId(
   kind: PkiKind,
   extensions: Extension[] | undefined
@@ -68,6 +77,7 @@ function nonEmptyKeyId(name: string, keyId: string | undefined): string | null {
   return keyId ?? null;
 }
 
+/** Returns the first common name that is a string. */
 function commonName(name: RelativeDistinguishedNames): string | null {
   for (const attribute of name.typesAndValues) {
     const text = attribute.type === "2.5.4.3" ? stringOf(attribute.value) : undefined;
@@ -102,6 +112,7 @@ function crlNumber(crl: CertificateRevocationList, oid: string, name: string): b
   return extension && readExtension("crl", name, extension, readCrlNumber);
 }
 
+/** Reads Next CRL Publish; it is informational, so an unreadable value is ignored. */
 function nextCrlPublish(crl: CertificateRevocationList): Date | undefined {
   const extension = findExtension(crl.crlExtensions?.extensions, NEXT_CRL_PUBLISH_OID);
   if (!extension) {
@@ -114,6 +125,7 @@ function nextCrlPublish(crl: CertificateRevocationList): Date | undefined {
   }
 }
 
+/** The summary fields that the header alone provides. */
 export type CrlFields = Omit<CrlSummary, "revokedCount" | "sha1">;
 
 export function readCrlFields(crl: CertificateRevocationList): CrlFields {

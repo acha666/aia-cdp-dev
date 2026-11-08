@@ -1,3 +1,16 @@
+/**
+ * Certificate and CRL parsing into pkijs objects, with every failure as a
+ * {@link PkiParseError}.
+ *
+ * The signature covers everything but the outer SEQUENCE, signatureAlgorithm and
+ * signatureValue, so only those must be strict DER: then nobody can publish a re-encoded copy
+ * of a CRL ahead of the original. The rest only has to decode.
+ *
+ * A CRL can be large, so its header (everything but the revoked entries) is parsed first and
+ * on its own; the entries are parsed one at a time, and only when needed.
+ *
+ * @packageDocumentation
+ */
 import { fromBER } from "asn1js";
 import type { BaseBlock } from "asn1js";
 import * as pkijs from "pkijs";
@@ -25,6 +38,7 @@ function wellFormed(kind: PkiKind, block: BaseBlock, der: boolean): void {
   }
 }
 
+/** Decodes one element that spans `der`, checking for decode errors but not DER rules. */
 function decode(der: ArrayBuffer | Uint8Array, kind: PkiKind, limits?: { maxDepth: number }) {
   const label = LABELS[kind];
   let asn1: ReturnType<typeof fromBER>;
@@ -56,11 +70,17 @@ function construct<T>(kind: PkiKind, build: () => T): T {
   }
 }
 
+/**
+ * Parses a DER certificate.
+ *
+ * @throws {@link PkiParseError}
+ */
 export function parseCertificate(der: ArrayBuffer | Uint8Array): pkijs.Certificate {
   const schema = decode(der, "certificate");
   return construct("certificate", () => new pkijs.Certificate({ schema }));
 }
 
+/** The two signature AlgorithmIdentifiers of a CRL, as received. */
 export interface ReceivedAlgorithms {
   signatureAlgorithmView: Uint8Array;
   signatureView: Uint8Array;
@@ -68,6 +88,7 @@ export interface ReceivedAlgorithms {
 
 export interface ReceivedCrl extends pkijs.CertificateRevocationList, ReceivedAlgorithms {}
 
+/** RFC 5280 5.1.1.2: the outer and TBS signature algorithms must be identical. */
 export function sameSignatureAlgorithms(received: ReceivedAlgorithms): boolean {
   const { signatureAlgorithmView: outer, signatureView: inner } = received;
   return (
@@ -75,6 +96,7 @@ export function sameSignatureAlgorithms(received: ReceivedAlgorithms): boolean {
   );
 }
 
+/** Builds the pkijs CRL and keeps the raw algorithm bytes; the signature fields must be DER. */
 function crlOf(schema: BaseBlock): ReceivedCrl {
   const crl = construct("crl", () => new pkijs.CertificateRevocationList({ schema }));
   const outer = new DerReader(schema);
@@ -95,8 +117,10 @@ const UTC_TIME_TAG = 0x17;
 const GENERALIZED_TIME_TAG = 0x18;
 const CRL_EXTENSIONS_TAG = 0xa0;
 
+/** Bounds the part of a CRL that is fully decoded before its signature is verified. */
 const MAX_HEADER_BYTES = 16 * 1024;
 
+/** Splits the contents of `parent` into at most `max` TLVs. */
 function fieldsOf(der: Uint8Array, parent: Tlv, max: number): Tlv[] {
   const fields: Tlv[] = [];
   let at = parent.contents;
@@ -114,10 +138,18 @@ function fieldsOf(der: Uint8Array, parent: Tlv, max: number): Tlv[] {
   return fields;
 }
 
+/**
+ * Parses a DER CRL without its revoked entries; `tbsView` still covers the whole TBS, so
+ * the signature can be verified.
+ *
+ * @throws {@link PkiParseError}
+ */
 export function parseCrlHeader(der: Uint8Array): ReceivedCrl {
   return splitCrl(der).crl;
 }
 
+// The revoked list is the SEQUENCE right after thisUpdate or nextUpdate; the header is
+// re-encoded without it.
 function splitCrl(der: Uint8Array): { crl: ReceivedCrl; revoked: Tlv | undefined } {
   const outer = readTlv(der, 0, der.length);
   if (outer === undefined) {
@@ -161,6 +193,8 @@ function splitCrl(der: Uint8Array): { crl: ReceivedCrl; revoked: Tlv | undefined
   }
   const schema = decode(header, "crl");
   const tbsFields = new DerReader(new DerReader(schema).read(SEQUENCE)).rest(0);
+  // asn1js reads a constructed value's elements as far as the input goes, so a field whose
+  // elements overrun it would be read differently from the split above.
   const overruns = ({ idBlock, lenBlock, valueBlock }: BaseBlock) =>
     idBlock.isConstructed && valueBlock.blockLength !== lenBlock.length;
   if (tbsFields.some(overruns)) {
@@ -177,6 +211,7 @@ export interface CrlEntry {
   extensions: PlainExtension[];
 }
 
+/** A CRL with its revoked entries. */
 export interface WholeCrl extends ReceivedCrl {
   entries: CrlEntry[];
 }
@@ -191,6 +226,11 @@ function readEntry(der: Uint8Array): CrlEntry {
   };
 }
 
+/**
+ * Parses a DER CRL with all its revoked entries.
+ *
+ * @throws {@link PkiParseError}
+ */
 export function parseCRL(der: Uint8Array): WholeCrl {
   const { crl, revoked } = splitCrl(der);
   const entries = revoked

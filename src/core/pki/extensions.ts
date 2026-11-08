@@ -12,6 +12,7 @@ import {
   sequenceOf,
 } from "./der.ts";
 
+/** Decodes the value inside an extension's OCTET STRING. */
 export const readExtensionSchema = (extension: Extension): BaseBlock =>
   readOne(extension.extnValue.valueBlock.valueHexView);
 
@@ -21,6 +22,7 @@ export interface PlainExtension {
   value: Uint8Array;
 }
 
+/** Extracts an extension without keeping a reference to the asn1js tree. */
 export const plainExtension = (extension: Extension): PlainExtension => ({
   extnID: extension.extnID,
   critical: extension.critical,
@@ -30,6 +32,7 @@ export const plainExtension = (extension: Extension): PlainExtension => ({
 export const readSubjectKeyId = (value: BaseBlock): Uint8Array =>
   contents(expectTag(value, OCTET_STRING));
 
+/** Reads AuthorityKeyIdentifier (RFC 5280 4.2.1.1). */
 export function readAuthorityKeyId(value: BaseBlock) {
   const aki = new DerReader(value);
   const keyIdentifier = aki.optional(context(0), contents);
@@ -42,6 +45,7 @@ export function readAuthorityKeyId(value: BaseBlock) {
   return { keyIdentifier, names, serial };
 }
 
+/** RFC 5280 5.2.3 limits CRL numbers to 20 octets. */
 export const MAX_CRL_NUMBER_OCTETS = 20;
 
 export function readCrlNumber(value: BaseBlock): bigint {

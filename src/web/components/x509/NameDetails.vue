@@ -9,6 +9,7 @@ const props = defineProps<{ name: RelativeDistinguishedNames; title?: string }>(
 
 const { t } = useI18n();
 
+// The common attributes always get a row; any others follow with their own labels.
 const FIELDS = [
   ["commonName", "2.5.4.3"],
   ["organization", "2.5.4.10"],

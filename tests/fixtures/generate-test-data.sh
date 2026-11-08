@@ -1,4 +1,8 @@
 #!/usr/bin/env bash
+# Regenerates the test PKI in tests/fixtures/pki with OpenSSL 3: CA and leaf certificates,
+# CRLs for the accept and reject cases, invalid inputs, and manifest.json, which describes
+# every file and the outcome the tests expect for it. Keys are random, so every run produces
+# new bytes.
 set -euo pipefail
 export LC_ALL=C
 OPENSSL=${OPENSSL:-openssl}
@@ -196,6 +200,7 @@ EOF
 export CA_DIR=$WORK/ca/none STRING_MASK=pkix BASE_CRL_NUMBER=0 \
   NEXT_PUBLISH=260101000000Z FORGED_KEYID=00 PREV_CA_HASH=00
 
+# ossl ARGS...: runs openssl, printing its output only on failure.
 ossl() {
   if ! "$OPENSSL" "$@" >"$WORK/openssl.log" 2>&1; then
     cat "$WORK/openssl.log" >&2
@@ -222,6 +227,7 @@ genkey() {
   esac
 }
 
+# issue NAME ISSUER|self EXTENSIONS NOT_BEFORE NOT_AFTER SUBJECT [STRING_MASK]
 issue() {
   local name=$1 issuer=$2 ext=$3 start=$4 end=$5 subject=$6 mask=${7:-pkix}
   local key=$WORK/keys/$name.pem req=$WORK/req/$name.pem cert=$WORK/certs/$name.pem
@@ -234,6 +240,7 @@ issue() {
   cp "$cert" "$OUT/certs/$name.pem"
 }
 
+# ca NAME KEY_TYPE FIRST_SERIAL ISSUER|self EXTENSIONS NOT_BEFORE NOT_AFTER SUBJECT
 ca() {
   local dir=$WORK/ca/$1
   genkey "$1" "$2"
@@ -245,6 +252,7 @@ ca() {
   cp "$WORK/certs/$1.pem" "$dir/cert.pem"
 }
 
+# revoke CA SERIAL REVOCATION_FIELD: marks a serial revoked in the CA database (index.txt syntax).
 revoke() {
   local db=$WORK/ca/$1/index.txt
   awk -F'\t' -v OFS='\t' -v serial="$2" -v info="$3" \
@@ -253,6 +261,7 @@ revoke() {
   mv "$db.new" "$db"
 }
 
+# crl SIGNER NUMBER|none|noext THIS_UPDATE NEXT_UPDATE EXTENSIONS FILE [openssl ca ARGS...]
 crl() {
   local signer=$1 number=$2 this=$3 next=$4 ext=$5 out=$OUT/crls/$6
   CRL_EXT=$5 CRL_FILE=$6 CRL_NUMBER=$2 CRL_THIS=$3 CRL_NEXT=$4
@@ -272,6 +281,7 @@ crl() {
   CRL_REVOKED=$(grep -c '^R' "$dir/index.txt" || true)
 }
 
+# DER is edited as text: space-separated hex bytes, each preceded by a space.
 bytes_of() { od -An -v -tx1 | tr -s ' \n' '  ' | sed 's/ *$//'; }
 file_bytes() { bytes_of <"$1"; }
 text_bytes() { printf '%s' "$1" | bytes_of; }
@@ -285,6 +295,7 @@ der_len() {
   else die "der_len: $n bytes is too long"; fi
 }
 tlv() { printf ' %s%s%s' "$1" "$(der_len "$(nbytes "$2")")" "$2"; }
+# hdr BYTES: sets HDR (header length in characters) and LEN (content length in bytes).
 hdr() {
   local first=$((16#${1:4:2})) n i
   if ((first < 0x80)); then HDR=6 LEN=$first; return; fi
@@ -293,6 +304,7 @@ hdr() {
   HDR=$((6 + 3 * n))
 }
 
+# resign FILE KEY DIGEST OLD NEW: replaces bytes OLD with NEW in the TBS and signs it again.
 resign() {
   local file=$1 key=$2 md=$3 old=$4 new=$5 all body tbs rest alg stripped
   all=$(file_bytes "$file")
@@ -308,6 +320,7 @@ resign() {
   write_bytes "$(tlv 30 "$tbs$alg$(tlv 03 " 00$(file_bytes "$WORK/sig.bin")")")" >"$file"
 }
 
+# flip_last_byte FILE: corrupts the signature.
 flip_last_byte() {
   local b
   b=$(file_bytes "$1")
@@ -320,6 +333,7 @@ pem() {
 }
 
 CERTS=() CRLS=()
+# obj KEY VALUE...: a JSON object; a VALUE starting with = is emitted raw.
 obj() {
   local out='' sep=''
   while (($#)); do
@@ -329,6 +343,7 @@ obj() {
   done
   printf '{%s}' "$out"
 }
+# cert_entry NAME ISSUER KEY NOT_BEFORE NOT_AFTER IMPORT ROLE: adds a manifest entry.
 cert_entry() {
   local serial digest
   serial=$("$OPENSSL" x509 -in "$WORK/certs/$1.pem" -noout -serial | cut -d= -f2)
@@ -337,6 +352,7 @@ cert_entry() {
     serial "$serial" notBefore "$(iso "$4")" notAfter "$(iso "$5")" import "=$6" \
     sha256 "$digest" role "$7")")
 }
+# crl_entry EXPECT NOTE: adds a manifest entry for the CRL that crl() just wrote.
 crl_entry() {
   local number=$CRL_NUMBER kind=full base='=null' next='=null' publish='=null' digest
   [[ $number =~ ^[0-9]+$ ]] || number='=null'

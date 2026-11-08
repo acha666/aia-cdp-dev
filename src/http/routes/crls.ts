@@ -22,6 +22,7 @@ import type { AppDeps, AppSettings } from "../types.ts";
 
 const SECURITY_SCHEME = "uploadBearer";
 
+/** The upload token is optional in the document: it is required only when it is set. */
 const security: Record<string, string[]>[] = [{}, { [SECURITY_SCHEME]: [] }];
 
 const TAGS = ["crls"];
@@ -38,11 +39,11 @@ function uploadCrlRoute(settings: AppSettings) {
     operationId: "uploadCrl",
     summary: "Publish a CRL",
     description:
-      "One CRL, DER or a single X509 CRL PEM block, as the request body; the format is " +
-      "recognized from the bytes. It goes to the target that the configuration binds to its issuer (found by the Authority Key " +
-      "Identifier) and its kind (full or delta), once the extension policy, the issuer's " +
-      "signature and the comparison with the target's current CRL accept it. " +
-      "`Authorization: Bearer <AIA_UPLOAD_TOKEN>` is needed only while that token is set.",
+      "One CRL as the request body, DER or a single X509 CRL PEM block. It is published to the " +
+      "target of its kind (full or delta) whose issuer's Subject Key Identifier matches the " +
+      "CRL's Authority Key Identifier, once the issuer's signature verifies and the CRL is " +
+      "newer than the target's current one. `Authorization: Bearer <AIA_UPLOAD_TOKEN>` is " +
+      "required only when that token is set.",
     tags: TAGS,
     security,
     middleware: [
@@ -114,6 +115,7 @@ const FAILURES = {
   concurrent_update: "The catalog kept changing concurrently: retry the upload",
 } as const satisfies Record<PublishErrorCode, string>;
 
+/** Freshness failures are conflicts with the current state (409); the rest are 422. */
 function publishError(failure: PublishFailure): ApiError {
   const message =
     failure.error === "issuer_not_found" && "reason" in failure.details
@@ -134,6 +136,7 @@ function publishError(failure: PublishFailure): ApiError {
   );
 }
 
+/** The public CRL target list and the CRL upload. */
 export function crlRoutes(deps: AppDeps) {
   const crls = new OpenAPIHono();
 

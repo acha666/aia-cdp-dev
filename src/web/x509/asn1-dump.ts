@@ -1,3 +1,9 @@
+/**
+ * A readable ASN.1 dump for values the UI cannot decode.
+ *
+ * @packageDocumentation
+ */
+
 import {
   BitString,
   Boolean as Asn1Boolean,
@@ -14,6 +20,7 @@ import { asciiOf, children, readStrictTime, stringOf, tagLabel } from "../../cor
 import { toUpperHex } from "../../core/digest.ts";
 import { KNOWN_OID_NAMES } from "./oid-names";
 
+/** One element of the dump; `length` is the content length in bytes. */
 export interface Asn1Line {
   depth: number;
   tag: string;
@@ -71,8 +78,10 @@ function primitiveText(block: BaseBlock): string | undefined {
   return clip(toUpperHex(view ?? block.toBER(false)));
 }
 
+/** Bounds the dump of a hostile or very large value. */
 const DUMP_LIMITS = { maxLines: 200, maxDepth: 12 };
 
+/** Dumps BER-decodable bytes, or returns `undefined` if they are not. */
 export function dumpAsn1(bytes: Uint8Array | ArrayBuffer): Asn1Line[] | undefined {
   let parsed: ReturnType<typeof fromBER>;
   try {
@@ -104,10 +113,12 @@ export function dumpAsn1(bytes: Uint8Array | ArrayBuffer): Asn1Line[] | undefine
   return lines;
 }
 
+/** The full encoding of a block as hex. */
 export function blockHex(block: BaseBlock): string {
   return toUpperHex(block.toBER(false));
 }
 
+/** A primitive's value as text, or the block's encoding as hex. */
 export function displayText(block: BaseBlock): string {
   return primitiveText(block) ?? blockHex(block);
 }

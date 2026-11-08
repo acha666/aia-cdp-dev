@@ -25,6 +25,7 @@ const routes: RouteRecordRaw[] = [
   { path: "/:pathMatch(.*)*", name: "not-found", component: NotFoundPage },
 ];
 
+/** Restores the saved position on back and forward, and keeps it while the path stays the same. */
 const scrollBehavior: RouterScrollBehavior = (to, from, saved) => {
   if (saved) {
     return saved;

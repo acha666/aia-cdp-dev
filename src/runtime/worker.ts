@@ -1,3 +1,9 @@
+/**
+ * The Cloudflare Workers entry point: serves the app with an R2 store and the static assets
+ * binding.
+ *
+ * @packageDocumentation
+ */
 import { createApp } from "../http/app.ts";
 import type { AppType } from "../http/app.ts";
 import { ERROR_MESSAGES, errorBody, NO_STORE } from "../http/errors.ts";
@@ -8,6 +14,7 @@ const VARIABLES = ["AIA_ADMIN_TOKEN", "AIA_UPLOAD_TOKEN", "AIA_MAX_UPLOAD_BYTES"
 
 type WorkerEnv = Env & Partial<Record<(typeof VARIABLES)[number], unknown>>;
 
+/** Wrangler vars can be JSON values; settings parse strings. */
 function settingsInput(env: WorkerEnv): Record<string, string | undefined> {
   return Object.fromEntries(
     VARIABLES.map((name) => {
@@ -20,6 +27,7 @@ function settingsInput(env: WorkerEnv): Record<string, string | undefined> {
   );
 }
 
+/** One app per env object, so settings are parsed once per isolate. */
 const apps = new WeakMap<Env, AppType>();
 
 function appFor(env: WorkerEnv): { ok: true; app: AppType } | { ok: false; error: string } {

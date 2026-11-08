@@ -1,3 +1,10 @@
+/**
+ * Fills a running development server (`AIA_URL`) with the test PKI: imports the CA
+ * certificates, applies a config if there is none, and publishes some CRLs.
+ *
+ * @packageDocumentation
+ */
+
 import process from "node:process";
 import { emptyConfig, encodeJson } from "../src/core/catalog.ts";
 import type { Config } from "../src/core/catalog.ts";

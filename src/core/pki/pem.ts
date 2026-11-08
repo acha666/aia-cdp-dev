@@ -1,3 +1,8 @@
+/**
+ * PEM encoding and decoding, and minimal DER TLV handling.
+ *
+ * @packageDocumentation
+ */
 import { PkiParseError } from "./errors.ts";
 import type { PkiKind } from "./errors.ts";
 
@@ -8,12 +13,14 @@ function boundaryLines(kind: PkiKind): [begin: string, end: string] {
   return [`-----BEGIN ${label}-----`, `-----END ${label}-----`];
 }
 
+/** Encodes DER as PEM with 64-character lines and a trailing newline. */
 export function derToPem(bytes: Uint8Array, kind: PkiKind): string {
   const lines = bytes.toBase64().match(/.{1,64}/g) ?? [];
   const [begin, end] = boundaryLines(kind);
   return `${begin}\n${lines.join("\n")}\n${end}\n`;
 }
 
+/** The exact length of {@link derToPem} output, for Content-Length without encoding. */
 export function pemLength(derSize: number, kind: PkiKind): number {
   const base64 = 4 * Math.ceil(derSize / 3);
   const [begin, end] = boundaryLines(kind);
@@ -38,6 +45,7 @@ function boundariesOf(text: string): Boundary[] {
   }));
 }
 
+/** Offsets of one DER element: its start, its contents and its end. */
 export interface Tlv {
   tag: number;
   start: number;
@@ -45,6 +53,7 @@ export interface Tlv {
   end: number;
 }
 
+/** Reads one definite-length DER TLV within `limit`, or returns `undefined`. */
 export function readTlv(der: Uint8Array, start: number, limit: number): Tlv | undefined {
   const tag = der[start];
   const first = der[start + 1];
@@ -71,6 +80,7 @@ export function readTlv(der: Uint8Array, start: number, limit: number): Tlv | un
   return end <= limit ? { tag, start, contents, end } : undefined;
 }
 
+/** Encodes a TLV from a one-byte tag and its contents. */
 export function encodeTlv(tag: number, parts: readonly Uint8Array[]): Uint8Array {
   const length = parts.reduce((sum, part) => sum + part.byteLength, 0);
   const octets: number[] = [];
@@ -93,6 +103,12 @@ export function isDerSequence(bytes: Uint8Array): boolean {
   return tlv?.tag === 0x30 && tlv.end === bytes.length;
 }
 
+/**
+ * Accepts DER, or exactly one PEM block with the label for `kind`. Input that is neither is
+ * returned as is, so the DER parser reports what is wrong with it.
+ *
+ * @throws {@link PkiParseError} for a bad PEM block.
+ */
 export function toDer(bytes: Uint8Array, kind: PkiKind): Uint8Array {
   if (isDerSequence(bytes)) {
     return bytes;
@@ -124,6 +140,7 @@ export function toDer(bytes: Uint8Array, kind: PkiKind): Uint8Array {
   }
 }
 
+/** Splits text into its PEM blocks of `kind`, ignoring blocks with other labels. */
 export function splitPemBlocks(text: string, kind: PkiKind): string[] {
   const label = PEM_LABELS[kind];
   const blocks: string[] = [];

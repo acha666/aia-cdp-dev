@@ -1,3 +1,9 @@
+/**
+ * Shared OpenAPI schemas and response descriptions of the JSON API.
+ *
+ * @packageDocumentation
+ */
+
 import { z } from "@hono/zod-openapi";
 import {
   CertificateSummarySchema,
@@ -29,6 +35,7 @@ export function jsonResponse<S extends z.ZodType>(description: string, schema: S
 
 export const binary = z.string().openapi({ format: "binary" });
 
+/** A required request body sent as raw bytes in one of `mediaTypes`. */
 export function rawBody(mediaTypes: readonly string[]) {
   return {
     required: true,
@@ -42,8 +49,7 @@ export function rawBody(mediaTypes: readonly string[]) {
 }
 
 export const INTERNAL_ERROR = jsonResponse(
-  "The store failed, or it cannot back what catalog.json and config.json name (logged, never " +
-    "sent); retry later",
+  "The store failed or is inconsistent; the cause is logged",
   ErrorResponse
 );
 
@@ -109,6 +115,7 @@ export const TargetIdParam = z.object({
   targetId: z
     .string()
     .toLowerCase()
+    // z.uuid() accepts the max UUID only in lowercase, so the input is lowercased first.
     .check(z.uuid())
     .openapi({ description: "The target id from config.json (UUID, either case)" }),
 });
@@ -117,6 +124,7 @@ export const HistoryVersionParam = TargetIdParam.extend({
   sha256: sha256Param("SHA-256 of the version's DER, hex (either case)"),
 });
 
+// Matches the order of downloadPaths in core/resources.ts.
 const Downloads = z.array(z.string()).openapi({
   description:
     "The paths that serve the resource (config.json's path table), in code-unit order, each DER " +

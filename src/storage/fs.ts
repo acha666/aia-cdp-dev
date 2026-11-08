@@ -5,6 +5,7 @@ import { sha256Hex } from "../core/digest.ts";
 import { assertStoreKey, assertStorePrefix, isStoreKeySegment } from "../core/store.ts";
 import type { ObjectStore, PutOptions, PutResult } from "../core/store.ts";
 
+/** Serializes writes to the same file within this process. */
 const locks = new Map<string, Promise<void>>();
 
 async function exclusive<T>(path: string, task: () => Promise<T>): Promise<T> {
@@ -42,6 +43,13 @@ async function fsyncDirectory(path: string): Promise<void> {
   }
 }
 
+/**
+ * Stores each key as a file under `root`. The ETag is the SHA-256 of the content; writes
+ * go through a temporary file and a rename, so readers never see a partial object.
+ *
+ * Conditional writes are atomic only within one process, so a data directory must not be
+ * shared by several servers.
+ */
 export class FsStore implements ObjectStore {
   readonly #root: string;
 
@@ -99,6 +107,7 @@ export class FsStore implements ObjectStore {
   async list(prefix: string): Promise<{ key: string; size: number }[]> {
     assertStorePrefix(prefix);
     const base = prefix === "" ? this.#root : this.#path(prefix.slice(0, -1));
+    // Temporary files and anything else that is not a valid key are skipped.
     const names = await orMissing(readdir(base, { recursive: true }), []);
     const objects = await Promise.all(
       names.sort().map(async (name) => {

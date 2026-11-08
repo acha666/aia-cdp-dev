@@ -4,9 +4,11 @@ import { expect } from "vitest";
 import type { PkiKind, PkiParseReason } from "../../src/core/pki/errors.ts";
 import { encodeTlv } from "../../src/core/pki/pem.ts";
 
+/** Matches a {@link PkiParseError} of `kind` and `reason`. */
 export const pkiError = (kind: PkiKind, reason: PkiParseReason): unknown =>
   expect.objectContaining({ name: "PkiParseError", kind, reason });
 
+/** Re-encodes the outer element of `der` in valid BER forms that DER forbids. */
 export function berVariants(der: Uint8Array): [variant: string, bytes: Uint8Array][] {
   const tag = der[0] ?? 0;
   const first = der[1] ?? 0;
@@ -48,6 +50,7 @@ export function extension(
   return new pkijs.Extension({ extnID: oid, critical, extnValue: value.toBER(false) });
 }
 
+/** Replaces the outer signatureAlgorithm of a signed object, keeping the TBS and signature. */
 export function withOuterAlgorithm(
   der: Uint8Array,
   rewrite: (algorithm: Uint8Array) => Uint8Array
@@ -71,6 +74,7 @@ function algorithmParts(algorithm: Uint8Array): [oid: Uint8Array, parameters: Ui
   return [algorithm.subarray(4, end), algorithm.subarray(end)];
 }
 
+/** Encodes the OID of an AlgorithmIdentifier with a non-minimal last arc. */
 export function padOid(algorithm: Uint8Array): Uint8Array {
   const [oid, parameters] = algorithmParts(algorithm);
   let start = oid.length - 1;
@@ -81,6 +85,7 @@ export function padOid(algorithm: Uint8Array): Uint8Array {
   return encodeTlv(0x30, [encodeTlv(0x06, [Uint8Array.from(padded)]), parameters]);
 }
 
+/** Replaces the parameters of an AlgorithmIdentifier with a NULL that has contents. */
 export function nullWithContents(algorithm: Uint8Array): Uint8Array {
   const [oid] = algorithmParts(algorithm);
   return encodeTlv(0x30, [encodeTlv(0x06, [oid]), Uint8Array.of(0x05, 0x01, 0x00)]);

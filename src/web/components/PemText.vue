@@ -10,6 +10,7 @@ const props = defineProps<{ path: string }>();
 
 const { t } = useI18n();
 
+// Shows the PEM as the public download path serves it.
 const pem = useQuery(() => ({
   queryKey: ["pem", props.path],
   queryFn: async ({ signal }) => {

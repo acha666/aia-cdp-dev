@@ -22,6 +22,7 @@ const commonNameOf = (commonName: string) =>
 const utcTime = (offsetMs: number) =>
   new pkijs.Time({ type: 0, value: new Date(NOW.getTime() + offsetMs) });
 
+/** Generates a fresh CA with Web Crypto, for cases the fixtures do not cover. */
 export async function generateCa(commonName = "Generated Test CA"): Promise<GeneratedCa> {
   const { privateKey, publicKey } = await crypto.subtle.generateKey(
     { name: "ECDSA", namedCurve: "P-256" },

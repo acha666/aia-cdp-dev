@@ -1,6 +1,7 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 
+/* Segoe UI with metrics that centre its text vertically in buttons and badges. */
 @font-face {
   font-family: "Segoe UI Centered";
   src: local("Segoe UI"), local("SegoeUI");

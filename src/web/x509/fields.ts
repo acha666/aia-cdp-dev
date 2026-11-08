@@ -1,3 +1,9 @@
+/**
+ * Formatting of certificate and CRL fields outside the extensions.
+ *
+ * @packageDocumentation
+ */
+
 import { ObjectIdentifier, Sequence } from "asn1js";
 import * as pkijs from "pkijs";
 import { CURVE_NAMES, HASH_ALG_NAMES } from "../../core/pki/constants.ts";
@@ -14,6 +20,7 @@ const RSASSA_PSS_OID = "1.2.840.113549.1.1.10";
 
 const SALT_LENGTH = context(2);
 
+/** The salt length field as encoded, if present. */
 function saltLength(params: Sequence): number | undefined {
   const field = params.valueBlock.value.find((block) => hasTag(block, SALT_LENGTH));
   return field && readInteger(expectTag(explicit(field, SALT_LENGTH), INTEGER));
@@ -28,7 +35,9 @@ function pssText(params: Sequence, i18n: Pick<I18nText, "t">): string | undefine
       try {
         const hash = new pkijs.AlgorithmIdentifier({ schema: mgfParams });
         mask += `/${nameOf(hash.algorithmId, HASH_ALG_NAMES)}`;
-      } catch {}
+      } catch {
+        // The mask is shown without its hash.
+      }
     }
     const salt = i18n.t("algorithm.salt", { length: saltLength(params) ?? pss.saltLength });
     return `${nameOf(pss.hashAlgorithm.algorithmId, HASH_ALG_NAMES)}, ${mask}, ${salt}`;
@@ -37,6 +46,7 @@ function pssText(params: Sequence, i18n: Pick<I18nText, "t">): string | undefine
   }
 }
 
+/** Names an algorithm with its curve or RSASSA-PSS parameters. */
 export function formatAlgorithm(
   algorithm: pkijs.AlgorithmIdentifier,
   names: Record<string, string>,
@@ -53,6 +63,7 @@ export function formatAlgorithm(
   return detail === undefined ? base : `${base} (${detail})`;
 }
 
+/** The RSA modulus size or the EC curve of a public key. */
 export function publicKeyInfo(spki: pkijs.PublicKeyInfo): { bits?: number; curve?: string } {
   const key: unknown = spki.parsedKey;
   if (key instanceof pkijs.RSAPublicKey) {
@@ -66,6 +77,7 @@ export function publicKeyInfo(spki: pkijs.PublicKeyInfo): { bits?: number; curve
   return {};
 }
 
+/** A unique identifier BIT STRING as hex, without its unused-bits octet. */
 export function uniqueIdHex(content: ArrayBuffer | undefined): string | undefined {
   return content && content.byteLength > 0
     ? toUpperHex(new Uint8Array(content).subarray(1))

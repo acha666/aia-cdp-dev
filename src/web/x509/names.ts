@@ -1,3 +1,9 @@
+/**
+ * Formatting of distinguished names and GeneralNames.
+ *
+ * @packageDocumentation
+ */
+
 import { BaseBlock, Set as Asn1Set } from "asn1js";
 import * as pkijs from "pkijs";
 import { stringOf } from "../../core/pki/asn1.ts";
@@ -22,6 +28,7 @@ import { OID_DICTIONARY, OTHER_NAME_TYPES, oidName } from "./oid-names";
 
 type Text = Pick<I18nText, "t">;
 
+/** One attribute of a name; `value` is its text, or `#` and its hex encoding. */
 export interface NameAttribute {
   oid: string;
   label: string;
@@ -51,6 +58,7 @@ function escapeRdnValue(value: string): string {
   return value.replace(/[\\,+"<>;]|^[ #]| $|\0/g, (char) => (char === "\0" ? "\\00" : `\\${char}`));
 }
 
+/** Formats a name as RFC 4514 text, most specific RDN first. */
 function formatRfc4514(rdns: NameAttribute[][]): string {
   return [...rdns]
     .reverse()
@@ -86,6 +94,7 @@ function readAttribute(schema: BaseBlock): NameAttribute {
   };
 }
 
+/** Reads a name with its RDNs in encoded order and its RFC 4514 form. */
 export function readName(name: pkijs.RelativeDistinguishedNames): NameView {
   const rdns = name.toSchema().valueBlock.value.map((group) => {
     if (!(group instanceof Asn1Set)) {
@@ -114,6 +123,7 @@ const GENERAL_NAME_TYPES = [
   "registeredID",
 ] as const;
 
+/** Formats a Microsoft GUID, whose first three groups are little-endian. */
 function formatGuid(bytes: Uint8Array): string {
   const le = (start: number, end: number) => toHex(bytes.slice(start, end).reverse());
   const hex = toHex(bytes);
@@ -155,6 +165,7 @@ function prefixLength(mask: Uint8Array): number | undefined {
   return /^(1*)0*$/.exec(bits)?.[1]?.length;
 }
 
+/** An address, or an address and mask in name constraints, written as a prefix length when it is one. */
 function formatIpGeneralName(bytes: Uint8Array): string {
   const plain = formatIpAddress(bytes);
   if (plain) {
@@ -192,6 +203,7 @@ function generalNameValue(type: (typeof GENERAL_NAME_TYPES)[number], block: Base
   }
 }
 
+/** Formats one GeneralName as `type: value`. */
 export function formatGeneralName(block: BaseBlock, i18n: Text): string {
   const type =
     block.idBlock.tagClass === 3 ? GENERAL_NAME_TYPES[block.idBlock.tagNumber] : undefined;

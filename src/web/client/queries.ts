@@ -8,6 +8,7 @@ import { ApiError, unwrap } from "./errors";
 
 const v1 = api.api.v1;
 
+/** Client errors are final; anything else is retried once. */
 export function shouldRetry(failureCount: number, error: unknown): boolean {
   const final = error instanceof ApiError && error.status >= 400 && error.status < 500;
   return !final && failureCount < 1;
@@ -19,6 +20,11 @@ export function createQueryClient(): QueryClient {
   });
 }
 
+/**
+ * Downloads a blob and parses it in the browser. Blobs never change, so the result is kept
+ * and the HTTP cache may be used. The parsers load on demand to keep pkijs out of the
+ * initial bundle.
+ */
 function blobQuery<T extends object>(
   sha256: string,
   code: "invalid_certificate" | "invalid_crl",
@@ -38,6 +44,7 @@ function blobQuery<T extends object>(
       }
       const der = new Uint8Array(await res.arrayBuffer());
       try {
+        // pkijs objects are large; Vue must not make them reactive.
         return markRaw(parse(await parsers, der));
       } catch (error) {
         throw new ApiError(422, code, `GET blob ${sha256}`, undefined, { cause: error });
@@ -71,6 +78,7 @@ export interface UploadCrlInput {
   token: string;
 }
 
+/** Uploads a CRL; on success every list is refetched. */
 export function useUploadCrl() {
   const client = useQueryClient();
   return useMutation({

@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# Builds the Docker image, runs it with a fresh volume and checks health, the non-root user,
+# the bundled CLI, scripts/smoke.sh and a clean shutdown.
 set -euo pipefail
 
 ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
@@ -24,6 +26,7 @@ cleanup() {
 trap cleanup EXIT
 
 failures=0
+# check DESCRIPTION COMMAND...: passes when COMMAND succeeds.
 check() {
   local description=$1
   shift
@@ -70,6 +73,7 @@ uid=$(docker exec "$NAME" id -u)
 check "runs as uid $uid (want 1000)" test "$uid" = 1000
 
 aia() { docker exec -e AIA_URL=http://127.0.0.1:8080 "$NAME" node dist/server/cli/aia.js "$@"; }
+# aia_check DESCRIPTION REGEX ARGS...: passes when the CLI succeeds and its output matches.
 aia_check() {
   local description=$1 want=$2 out status=0 ok=1
   shift 2

@@ -1,3 +1,11 @@
+/**
+ * CRL versions in the store. Each published CRL keeps its blob under `blobs/crls/<target>/`;
+ * when it is replaced, a marker under `history/<target>/` keeps it listed. A blob that is
+ * neither current nor marked was written by an upload that lost a race, and is ignored.
+ *
+ * @packageDocumentation
+ */
+
 import { z } from "zod";
 import { CrlSummarySchema, readState, Sha256Hex, Size, TargetId } from "./catalog.ts";
 import type { CrlSummary } from "./catalog.ts";
@@ -5,6 +13,7 @@ import { formatGeneralizedTime } from "./pki/asn1.ts";
 import { readBlob } from "./store.ts";
 import type { ObjectStore } from "./store.ts";
 
+/** Names a version so that keys sort by thisUpdate and stay unique. */
 export function crlVersionName(
   summary: Pick<CrlSummary, "thisUpdate" | "crlNumber">,
   sha256: string
@@ -69,6 +78,7 @@ const CrlHistoryEntry = z
   })
   .meta({ id: "CrlHistoryEntry" });
 
+/** The published versions of one target, including a target removed from the config. */
 export const CrlHistory = z
   .object({
     targetId: TargetId,
@@ -140,6 +150,7 @@ export async function listHistory(
   return { targetId, configured: history.configured, entries };
 }
 
+/** Reads one listed version of a target by SHA-256. */
 export async function getHistoryBlob(
   deps: { store: ObjectStore },
   targetId: string,

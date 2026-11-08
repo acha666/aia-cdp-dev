@@ -50,6 +50,7 @@ const rows = computed(() => {
         remaining: state === "current" ? relativeTime(summary?.nextUpdate, nowMs, i18n) : null,
         revoked: summary === null ? null : String(summary.revokedCount),
         state,
+        // The paths answer 404 until a CRL is published.
         downloads: target.current === null ? [] : target.downloads,
       };
     });

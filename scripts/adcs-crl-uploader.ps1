@@ -1,3 +1,41 @@
+#Requires -Version 7.0
+<#
+.SYNOPSIS
+Uploads the CRLs that an AD CS CA writes to a folder to the aia-cdp service.
+
+.DESCRIPTION
+Sends every .crl, .dcrl and .pem file in SourceDir to POST /api/v1/crls, oldest first, and
+records each accepted file's SHA-256 in a ledger so that unchanged files are not sent again.
+A .pem file is skipped when a file with its name minus .pem exists. Run it after the CA
+publishes CRLs, for example from a scheduled task. Exits 1 if any file failed.
+
+.PARAMETER UploadUri
+The upload endpoint. The ledger is reset when it changes.
+
+.PARAMETER UploadTokenFile
+A file holding the upload token, if the service requires one.
+
+.PARAMETER SourceDir
+The folder the CA publishes CRLs to.
+
+.PARAMETER LogPath
+The log file; every line is also written to the console.
+
+.PARAMETER LedgerPath
+The JSON file of accepted files. Delete it to upload everything again.
+
+.PARAMETER TimeoutSec
+The timeout of each upload.
+
+.PARAMETER AllowInsecureHttp
+Allows sending the token over http://, for tests.
+
+.PARAMETER UploadIntervalMs
+The pause between uploads.
+
+.EXAMPLE
+pwsh -File adcs-crl-uploader.ps1 -UploadUri https://pki.example.com/api/v1/crls -UploadTokenFile C:\ProgramData\PKI\crl-uploader\token.txt
+#>
 [CmdletBinding(PositionalBinding = $false)]
 param(
     [ValidateNotNullOrEmpty()][string]$UploadUri = 'https://aia.example.com/api/v1/crls',

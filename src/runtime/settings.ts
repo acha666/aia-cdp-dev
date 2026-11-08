@@ -1,7 +1,14 @@
+/**
+ * Settings from environment variables, shared by the Node server and the Worker.
+ *
+ * @packageDocumentation
+ */
+
 import { z } from "zod";
 
 type SettingsResult<T> = { ok: true; value: T } | { ok: false; error: string };
 
+/** Secrets that can also be read from a file named by `<NAME>_FILE`. */
 const FILE_VARIANTS = ["AIA_ADMIN_TOKEN", "AIA_UPLOAD_TOKEN"] as const;
 
 type Env = Readonly<Record<string, string | undefined>>;
@@ -50,6 +57,7 @@ const SettingsSchema = z
     },
   }));
 
+/** Validates the environment and applies defaults. */
 export function parseSettings(env: Env): SettingsResult<z.output<typeof SettingsSchema>> {
   const result = SettingsSchema.safeParse(env);
   if (!result.success) {
@@ -61,6 +69,7 @@ export function parseSettings(env: Env): SettingsResult<z.output<typeof Settings
   return { ok: true, value: result.data };
 }
 
+/** Replaces each `<NAME>_FILE` with the file's content, minus one trailing newline. */
 export function resolveFileVariants(
   env: Env,
   readText: (path: string) => string

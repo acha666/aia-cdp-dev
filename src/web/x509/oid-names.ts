@@ -1,3 +1,9 @@
+/**
+ * Display names of OIDs.
+ *
+ * @packageDocumentation
+ */
+
 import {
   CURVE_NAMES,
   HASH_ALG_NAMES,
@@ -5,6 +11,7 @@ import {
   SIGNATURE_ALG_NAMES,
 } from "../../core/pki/constants.ts";
 
+/** Name attribute types, with the RFC 4514 short names where there are any. */
 export const OID_DICTIONARY: Record<string, { short?: string; name: string }> = {
   "2.5.4.3": { short: "CN", name: "commonName" },
   "2.5.4.4": { short: "SN", name: "surname" },
@@ -230,6 +237,7 @@ export const QC_STATEMENT_NAMES: Record<string, string> = {
   "0.4.0.1862.1.6": "QcType",
 };
 
+/** Every name above by OID, for the ASN.1 dump. */
 export const KNOWN_OID_NAMES: Record<string, string> = {
   ...Object.fromEntries(Object.entries(OID_DICTIONARY).map(([oid, entry]) => [oid, entry.name])),
   ...SIGNATURE_ALG_NAMES,
@@ -248,5 +256,6 @@ export const KNOWN_OID_NAMES: Record<string, string> = {
   "1.3.6.1.4.1.311.25.2.1": "ntdsObjectSid",
 };
 
+/** Looks an OID up in `names`, then among the name attribute types. */
 export const oidName = (oid: string, names?: Record<string, string>): string | undefined =>
   names?.[oid] ?? OID_DICTIONARY[oid]?.name;

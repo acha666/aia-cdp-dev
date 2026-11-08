@@ -28,6 +28,7 @@ function formatTimezoneOffset(date: Date): string {
   return `UTC${sign}${hours}:${String(minutes).padStart(2, "0")}`;
 }
 
+/** Formats a timestamp in the local time zone, naming its UTC offset. */
 export function formatDate(
   iso: string | null | undefined,
   i18n: Pick<I18nText, "locale" | "t">,
@@ -49,6 +50,10 @@ export function formatDate(
     .join(" ");
 }
 
+/**
+ * Describes a timestamp relative to `nowMs`: in whole days beyond a day, otherwise in
+ * hours and minutes. `detailed` always uses days, hours and minutes.
+ */
 export function relativeTime(
   iso: string | null | undefined,
   nowMs: number,

@@ -7,6 +7,7 @@ const repoRoot = fileURLToPath(new URL(".", import.meta.url));
 const webRoot = fileURLToPath(new URL("./src/web", import.meta.url));
 const DEFAULT_SITE_NAME = "PKI AIA/CDP";
 
+// In development, the API and downloads come from the server on port 8787.
 const SERVER_PATHS = "^/(?:api|ca|crl|dcrl)/";
 
 export default defineConfig(({ mode }) => {

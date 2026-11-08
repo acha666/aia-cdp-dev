@@ -1,3 +1,9 @@
+/**
+ * Read models for the public API, sorted by id so responses are stable.
+ *
+ * @packageDocumentation
+ */
+
 import type { Catalog, Config } from "./catalog.ts";
 import { downloadPaths } from "./resources.ts";
 
@@ -19,6 +25,7 @@ export function certificateList(config: Config, catalog: Catalog) {
   }));
 }
 
+/** @throws Error if a target's issuer is not in the catalog. */
 export function crlTargetList(config: Config, catalog: Catalog) {
   return sortedEntries(config.targets).map(([targetId, target]) => {
     const issuer = catalog.certificates[target.issuer];
@@ -52,6 +59,7 @@ export function crlTargetList(config: Config, catalog: Catalog) {
   });
 }
 
+/** Finds a served certificate or current CRL by the SHA-256 of its DER. */
 export function findBlob(
   config: Config,
   catalog: Catalog,

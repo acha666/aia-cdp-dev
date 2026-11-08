@@ -55,6 +55,7 @@ const getBlobRoute = createRoute({
   },
 });
 
+/** The public certificate list and the blob endpoint the web UI decodes. */
 export function certificateRoutes(deps: AppDeps) {
   return new OpenAPIHono()
     .openapi(listCertificatesRoute, async (c) => {

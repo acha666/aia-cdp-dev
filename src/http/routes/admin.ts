@@ -99,10 +99,9 @@ const deleteCertificateRoute = createRoute({
   operationId: "deleteCertificate",
   summary: "Delete a CA certificate",
   description:
-    "Removes an imported certificate and its blob, unless config.json or the current CRL of a " +
-    "target (also of one removed from config.json) references it: then 409 `referenced` with " +
-    "`details.references`. The verifier of a target's current CRL stays referenced, also once " +
-    "the target is removed.",
+    "Removes an imported certificate and its blob, unless config.json names it or it verified " +
+    "the current CRL of a target, including a target removed from config.json: then 409 " +
+    "`referenced` with `details.references`.",
   tags,
   security,
   request: { params: CertificateIdParam },
@@ -123,8 +122,8 @@ const getConfigRoute = createRoute({
   operationId: "getConfig",
   summary: "Read config.json",
   description:
-    "The stored bytes as they are, also when an out-of-band write left them invalid (so that " +
-    "they can be repaired). The ETag is the SHA-256 of those bytes, for `If-Match` on PUT.",
+    "The stored bytes as they are, even if they are invalid, so they can be repaired. The ETag " +
+    "is the SHA-256 of those bytes, for `If-Match` on PUT.",
   tags,
   security,
   responses: {
@@ -138,6 +137,7 @@ const getConfigRoute = createRoute({
   },
 });
 
+/** The ETag that GET sends; a weak tag, a list or `*` never matches. */
 const STRONG_SHA256_ETAG = /^"([0-9a-f]{64})"$/;
 
 function configPrecondition(headers: Headers): ConfigPrecondition {
@@ -204,7 +204,7 @@ const applyConfigRoute = createRoute({
     },
     ...ADMIN_FAILURES,
     412: jsonResponse(
-      "The precondition does not hold (another apply came first, or W/ / list / *)",
+      "The stored config changed since GET, or If-Match is not a single strong ETag",
       ErrorResponse
     ),
     413: PAYLOAD_TOO_LARGE,
@@ -220,9 +220,8 @@ const getHistoryRoute = createRoute({
   operationId: "getCrlHistory",
   summary: "List a CRL target's history",
   description:
-    "Every version that was published as the target's current CRL, newest first: the superseded " +
-    "ones and the current one, also for a target removed from config.json (retired). Blobs that " +
-    "a lost publish race left behind are not history.",
+    "Every version that was published as the target's current CRL, newest first, including " +
+    "for a target removed from config.json.",
   tags,
   security,
   request: { params: TargetIdParam },
@@ -253,6 +252,7 @@ const getHistoryVersionRoute = createRoute({
   },
 });
 
+/** Sends the config as stored bytes, so the ETag matches what the client receives. */
 function configResponse(bytes: Uint8Array, sha256: string) {
   const res = new Response(new Uint8Array(bytes), {
     status: 200,
@@ -261,6 +261,10 @@ function configResponse(bytes: Uint8Array, sha256: string) {
   return res as unknown as TypedResponse<JSONParsed<Config>, 200, "json">;
 }
 
+/**
+ * The admin API: certificate import and deletion, config.json, and CRL history. It needs
+ * `AIA_ADMIN_TOKEN`, and answers 503 while that is unset.
+ */
 export function adminRoutes(deps: AppDeps) {
   const { log } = deps;
   const admin = new OpenAPIHono();
@@ -336,8 +340,7 @@ export function adminRoutes(deps: AppDeps) {
       ? new ApiError(
           409,
           "referenced",
-          "The certificate is referenced: remove the references from config.json first, or keep " +
-            "it (the verifier of a target's current CRL stays referenced)",
+          "The certificate is still referenced: see details.references",
           result.details
         )
       : new ApiError(409, "concurrent_update", "The catalog kept changing concurrently: retry");
@@ -389,6 +392,7 @@ export function adminRoutes(deps: AppDeps) {
       }
       return configResponse(encodeJson(result.config), result.sha256);
     },
+    // A body that fails the schema is reported like any other rule violation (V1).
     (result) => {
       if (result.success) {
         return undefined;

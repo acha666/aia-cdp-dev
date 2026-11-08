@@ -4,6 +4,7 @@ import { useI18n } from "vue-i18n";
 import { LOCALE_STORAGE_KEY, normalizeLocale } from "@/i18n";
 import type { AppLocale } from "@/i18n";
 
+/** The UI locale as a writable ref; a choice is stored and followed across tabs. */
 export function useLocale() {
   const { locale } = useI18n({ useScope: "global" });
   const stored = useStorage<string | null>(LOCALE_STORAGE_KEY, null, undefined, {

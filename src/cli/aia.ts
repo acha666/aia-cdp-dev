@@ -1,3 +1,9 @@
+/**
+ * The `aia` command line client for the admin API and CRL uploads.
+ *
+ * @packageDocumentation
+ */
+
 import { readFile, writeFile } from "node:fs/promises";
 import process from "node:process";
 import { Command, CommanderError } from "commander";
@@ -25,6 +31,11 @@ interface Options {
   json?: boolean;
 }
 
+/**
+ * Runs the CLI with `argv` (without the node and script arguments).
+ *
+ * @returns The exit code: 0 success, 1 failure, 2 usage error.
+ */
 export async function main(argv: readonly string[], io: CliIo): Promise<number> {
   let code = 0;
   const program = new Command()
@@ -46,7 +57,9 @@ export async function main(argv: readonly string[], io: CliIo): Promise<number> 
     .configureHelp({ showGlobalOptions: true })
     .configureOutput({
       writeOut: io.stdout,
-      writeErr: () => {},
+      writeErr: () => {
+        // Errors are reported once, as the usage message below.
+      },
     })
     .exitOverride()
     .hook("preAction", (_, command) => {
@@ -85,16 +98,14 @@ export async function main(argv: readonly string[], io: CliIo): Promise<number> 
   config.command("show").description("Print the stored config.json").action(action(configShow));
   config
     .command("validate <file>")
-    .description("Validate offline: V1-V3 and static parts of V4 / V6; apply checks the rest")
+    .description("Validate a config file offline; apply also checks it against the stored state")
     .action(action(configValidate));
   config
     .command("apply <file>")
     .summary("Validate, then replace config.json as a whole")
     .description(
-      "Validate, then replace config.json using the ETag of a fresh GET (If-None-Match: * " +
-        "for the first configuration). Overwrites changes you have not seen; the precondition " +
-        "only catches changes between this command's GET and PUT. Removing a target retires " +
-        "it: nothing serves it, its history stays."
+      "Validate, then replace config.json as a whole, overwriting any change made since you " +
+        "last read it. A removed target is no longer served; its history is kept."
     )
     .action(action(configApply));
 
@@ -125,7 +136,7 @@ export async function main(argv: readonly string[], io: CliIo): Promise<number> 
     );
   program
     .command("delete-certificate <id>")
-    .description("Delete an unreferenced certificate (a current CRL's verifier stays referenced)")
+    .description("Delete a certificate that nothing references")
     .action(action(deleteCertificate));
   program
     .command("health")
@@ -157,6 +168,7 @@ export async function main(argv: readonly string[], io: CliIo): Promise<number> 
   }
 }
 
+/** The real process environment, console and file system. */
 export function processIo(): CliIo {
   return {
     fetch: (url, init) => fetch(url, init),
@@ -173,6 +185,7 @@ export function processIo(): CliIo {
 }
 
 if (import.meta.main) {
+  // A closed pipe (`aia ... | head`) is not an error.
   process.stdout.on("error", (error: NodeJS.ErrnoException) => {
     if (error.code !== "EPIPE") {
       throw error;

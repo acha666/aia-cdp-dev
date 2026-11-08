@@ -1,3 +1,4 @@
+/** An API error envelope, or a client-side failure: `network` or `invalid_response`. */
 export class ApiError extends Error {
   readonly code: string;
   readonly status: number;
@@ -22,6 +23,11 @@ type ResponseLike = Pick<Response, "ok" | "status" | "text">;
 
 type SuccessBody<R> = R extends { ok: true; json(): Promise<infer T> } ? T : never;
 
+/**
+ * Returns the JSON body of a successful response.
+ *
+ * @throws {@link ApiError} with the server's code, or `invalid_response`.
+ */
 export async function unwrap<R extends ResponseLike>(res: R): Promise<SuccessBody<R>> {
   const body = await readJson(res);
   if (res.ok) {
@@ -36,6 +42,7 @@ export async function unwrap<R extends ResponseLike>(res: R): Promise<SuccessBod
   throw new ApiError(res.status, error.code, error.message, error.details);
 }
 
+/** `fetch` that turns network failures into {@link ApiError} and lets aborts through. */
 export const apiFetch: typeof fetch = async (input, init) => {
   try {
     return await fetch(input, init);

@@ -1,3 +1,4 @@
+# syntax=docker/dockerfile:1
 ARG NODE_VERSION=26
 FROM node:${NODE_VERSION}-slim AS base
 WORKDIR /app
