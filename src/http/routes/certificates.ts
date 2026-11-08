@@ -1,14 +1,11 @@
-// Public reads (plan §7.1): GET /api/v1/certificates, the list of src/core/views.ts, and GET
-// /api/v1/blobs/{sha256}, the DER the UI decodes for a certificate or CRL detail. A public sub-app,
-// so it joins the AppType chain. Each request reads config.json and catalog.json once (plan §5.6);
-// a blob request also reads the blob. The SHA-256 is never a store key (an archive-style one is a
-// 400).
+// Public reads: the certificate list and the blobs the UI decodes. Each request reads config.json
+// and catalog.json once. The SHA-256 is never a store key (an archive-style one is a 400).
 //
-// Failures are thrown: ApiError for the 404, and for the 500 a blob the catalog names that is
-// missing or a store error, so onError writes every envelope (no-store) and the handlers only
-// return successes. HEAD is Hono's automatic HEAD of each GET.
+// Failures are thrown (a blob the catalog names but the store lacks is a 500), so onError writes
+// every envelope (no-store). HEAD is Hono's automatic HEAD of each GET.
 import { createRoute, OpenAPIHono } from "@hono/zod-openapi";
 import { readState } from "../../core/catalog.ts";
+import { IMMUTABLE } from "../../core/resources.ts";
 import { readBlob } from "../../core/store.ts";
 import { certificateList, findBlob } from "../../core/views.ts";
 import { ApiError, NO_STORE } from "../errors.ts";
@@ -80,7 +77,7 @@ export function certificateRoutes(deps: AppDeps) {
       return c.body(der, 200, {
         "Content-Type": blob.kind === "crl" ? "application/pkix-crl" : "application/pkix-cert",
         "Content-Length": String(der.byteLength),
-        "Cache-Control": "public, max-age=31536000, immutable",
+        "Cache-Control": IMMUTABLE,
       });
     });
 }

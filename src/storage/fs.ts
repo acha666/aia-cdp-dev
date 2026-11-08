@@ -1,10 +1,10 @@
-// Filesystem ObjectStore adapter for the Node runtime (plan §5.4). One data directory belongs to one
-// process (plan §1): conditional writes are serialized by an in-process per-key mutex.
+// Filesystem ObjectStore adapter for the Node runtime. One data directory belongs to one process:
+// conditional writes are serialized by an in-process per-key mutex.
 //
 // Layout: key `a/b/c` is the file `<root>/a/b/c`. assertStoreKey is the path traversal guard (no
-// empty, `.`/`..` or dot-leading segment, no `\` or NUL), so every path stays below the root and
-// no key can name a temporary file. A key cannot also be the directory of other keys here; the
-// keys of plan §5.1 never are. Anything else in the directory (an operator's `a (copy).der`, an
+// empty, `.`/`..` or dot-leading segment, no `\` or NUL), so every path stays below the root and no
+// key can name a temporary file. A key cannot also be the directory of other keys here; the keys
+// the service writes never are. Anything else in the directory (an operator's `a (copy).der`, an
 // editor's `x.der~`, `lost+found` at the root of a volume) is not a key: list() skips it. list()
 // reads every directory below its prefix, so one it cannot read fails it.
 import { randomUUID } from "node:crypto";

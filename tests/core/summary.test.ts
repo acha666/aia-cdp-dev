@@ -1,15 +1,18 @@
 import { createHash } from "node:crypto";
 import * as asn1 from "asn1js";
+import * as pkijs from "pkijs";
 import { describe, expect, it } from "vitest";
-import { CrlSummarySchema } from "../../../src/core/catalog.ts";
-import type { CertificateSummary } from "../../../src/core/catalog.ts";
-import { NEXT_CRL_PUBLISH_OID, parseCertificate, parseCRL } from "../../../src/core/pki/parsers.ts";
+import { CrlSummarySchema } from "../../src/core/catalog.ts";
+import type { CertificateSummary } from "../../src/core/catalog.ts";
+import { parseCertificate, parseCRL } from "../../src/core/pki/parsers.ts";
 import {
+  authorityKeyId,
   buildCertificateSummary,
   buildCrlSummary,
-} from "../../../src/core/summary/catalog-summary.ts";
-import { cert, fixture, manifest } from "../../fixtures/pki.ts";
-import { attribute, extension, nameOf, pkiError } from "../../helpers/pki.ts";
+  NEXT_CRL_PUBLISH_OID,
+} from "../../src/core/summary.ts";
+import { cert, fixture, manifest } from "../fixtures/pki.ts";
+import { attribute, extension, nameOf, pkiError } from "../helpers/pki.ts";
 
 // The catalog summaries: buildCertificateSummary on every fixture certificate, buildCrlSummary on
 // every parsable fixture CRL.
@@ -129,5 +132,71 @@ describe("buildCrlSummary", () => {
       extension(NEXT_CRL_PUBLISH_OID, value),
     ];
     expect((await buildCrlSummary(crl, der)).nextPublish).toBe(expected);
+  });
+});
+
+describe("key identifiers and CRL numbers", () => {
+  it("reads the AKI keyIdentifier as lowercase hex, undefined without one, and throws on a malformed one", () => {
+    const issuer = [new pkijs.GeneralName({ type: 6, value: "https://ca.example/issuer" })];
+    const serial = new asn1.Integer({ value: 17 });
+    const aki = (keyIdentifier?: asn1.OctetString) =>
+      extension(
+        "2.5.29.35",
+        new pkijs.AuthorityKeyIdentifier({
+          ...(keyIdentifier === undefined ? {} : { keyIdentifier }),
+          authorityCertIssuer: issuer,
+          authorityCertSerialNumber: serial,
+        }).toSchema()
+      );
+    const keyId = new asn1.OctetString({ valueHex: Uint8Array.of(0xab, 0xcd).buffer });
+    expect(authorityKeyId("crl", [aki(keyId)])).toBe("abcd");
+    expect(authorityKeyId("crl", [aki()])).toBeUndefined();
+    expect(authorityKeyId("crl", undefined)).toBeUndefined();
+    const malformed = pkiError("crl", "extension_value");
+    expect(() => authorityKeyId("crl", [extension("2.5.29.35", new asn1.Null())])).toThrow(
+      malformed
+    );
+    // The three fields in their order and nothing else (RFC 5280 §4.2.1.1).
+    const tagged = (tagNumber: number, ...bytes: number[]) =>
+      new asn1.Primitive({
+        idBlock: { tagClass: 3, tagNumber },
+        valueHex: Uint8Array.from(bytes).buffer,
+      });
+    for (const value of [
+      [tagged(2, 17), tagged(0, 0xab, 0xcd)],
+      [tagged(0, 0xab, 0xcd), new asn1.Null()],
+    ]) {
+      expect(() =>
+        authorityKeyId("crl", [extension("2.5.29.35", new asn1.Sequence({ value }))])
+      ).toThrow(malformed);
+    }
+  });
+
+  it("reads CRL numbers exactly and rejects negative, oversized or wrong-tag values", async () => {
+    const der = fixture("crls/issuing-ca-1/full-adcs.der");
+    const summaryWith = (ext: pkijs.Extension) => {
+      const crl = parseCRL(der);
+      crl.crlExtensions!.extensions = [ext];
+      return buildCrlSummary(crl, der);
+    };
+    for (const [oid, field] of [
+      ["2.5.29.20", "crlNumber"],
+      ["2.5.29.27", "baseCrlNumber"],
+    ] as const) {
+      const large = 2n ** 100n + 123n;
+      expect((await summaryWith(extension(oid, asn1.Integer.fromBigInt(large))))[field]).toBe(
+        large.toString()
+      );
+      for (const value of [
+        new asn1.Integer({ value: -1 }),
+        asn1.Integer.fromBigInt(2n ** 200n),
+        new asn1.Enumerated({ value: 1 }),
+      ]) {
+        await expect(
+          summaryWith(extension(oid, value)),
+          `${oid} ${value.constructor.name}`
+        ).rejects.toThrow(pkiError("crl", "extension_value"));
+      }
+    }
   });
 });

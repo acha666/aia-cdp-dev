@@ -1,6 +1,6 @@
-// Node's deps.ui (plan §4.2): files from the built UI, and index.html for history routes. The
-// reserved prefixes, the extension rule and Cache-Control are applied by the app (src/http/ui.ts),
-// exactly as for the Workers ASSETS binding.
+// Node's deps.ui: files from the built UI, and index.html for history routes. The reserved
+// prefixes, the extension rule and Cache-Control are applied by the app (src/http/ui.ts), exactly
+// as for the Workers ASSETS binding.
 import { resolve } from "node:path";
 import { serveStatic } from "@hono/node-server/serve-static";
 import { Hono } from "hono";

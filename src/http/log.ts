@@ -1,6 +1,5 @@
-// Structured logging (implementation §2.6, plan §4.3). Every line is a record with `level` and
-// `msg` (an event name) passed to deps.log, which writes it as one JSON object. Never log tokens,
-// request bodies, headers or query strings.
+// Structured logging: deps.log writes each record as one JSON object; `msg` is an event name.
+// Never log tokens, request bodies, headers or query strings.
 import { createMiddleware } from "hono/factory";
 
 type LogLevel = "info" | "warn" | "error";

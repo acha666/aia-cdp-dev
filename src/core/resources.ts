@@ -1,11 +1,8 @@
-// Downloads (plan §6): which resource a request path names and the headers it is served with.
-// Pure: the route reads config.json and catalog.json once each, and the blob only for a GET that is
-// not answered 304.
-//
-// Only what the current config's path table and the catalog name is reachable: the request path is
-// never a store key, so blobs/, history/, config.json and catalog.json cannot be downloaded, and a
-// path table entry the catalog or config cannot back is reported as `inconsistent` (a 500) instead
-// of being served from somewhere else.
+// Downloads: which resource a request path names and its headers, from config.json and catalog.json
+// alone, so the route reads the blob only for a GET that is not answered 304.
+// The request path is never a store key, only a key of config.paths: blobs/, history/, config.json
+// and catalog.json cannot be downloaded, and an entry the catalog or config cannot back is
+// `inconsistent` (a 500) instead of being served from somewhere else.
 import type { Catalog, Config, ConfigPath, CrlKind } from "./catalog.ts";
 import type { PkiKind } from "./pki/errors.ts";
 import { pemLength } from "./pki/pem.ts";
@@ -20,15 +17,15 @@ export interface FoundDownload {
   status: "found";
   kind: DownloadKind;
   format: DownloadFormat;
-  /** SHA-256 of the DER from the catalog (the certificate id, or current.sha256). */
+  /** SHA-256 of the DER, from the catalog. */
   sha256: string;
   /** Store key of the DER blob. */
   key: string;
   /** DER size in bytes, from the catalog. */
   size: number;
   /**
-   * Last segment of the request path, `.pem` included. The path is a config path (plus `.pem`),
-   * never other request text, so it goes into Content-Disposition as it is.
+   * Last request path segment, `.pem` included. That path is a config path (plus `.pem`), never
+   * other request text, so it goes into Content-Disposition as it is.
    */
   filename: string;
   /** The CRL's nextUpdate; null for a certificate and for a CRL without one. */
@@ -38,9 +35,8 @@ export interface FoundDownload {
 }
 
 /**
- * `inconsistent`: the path table references a certificate the catalog does not hold, or a target
- * config.targets does not define (`reference` is that path entry), e.g. a certificate deleted
- * while applyConfig ran.
+ * `inconsistent`: the path entry `reference` names a certificate not in the catalog or a target not
+ * in config.targets, e.g. a certificate deleted while applyConfig ran.
  */
 export type DownloadResolution =
   FoundDownload | { status: "not_found" } | { status: "inconsistent"; reference: ConfigPath };
@@ -51,15 +47,9 @@ const PEM_SUFFIX = ".pem";
 
 /**
  * The resource `path` names. `path` is Hono's `c.req.path` (decoded with decodeURI, so `%2F` and
- * malformed `%` sequences stay as they are) and is not decoded again.
- *
- * - A key of config.paths, matched exactly and case-sensitively → DER; otherwise a path
- *   ending in `.pem` whose stripped form is such a key → PEM (one suffix: `.pem.pem` is not
- *   found, since config paths never end in `.pem`). Anything else → not_found.
- * - A certificate path → catalog.certificates[id]; missing → inconsistent.
- * - A target path → config.targets[id] (missing → inconsistent) for the kind, and
- *   catalog.targets[id].current for the CRL: no catalog entry (never published) or a null current
- *   → not_found (plan §6).
+ * malformed `%` sequences stay as they are) and is not decoded again. It matches a config path
+ * exactly and case-sensitively, or one plus a single `.pem` for PEM (config paths never end in
+ * `.pem`). A target never published, or with a null current, is not_found.
  */
 export function resolveDownload(
   config: Config,
@@ -116,10 +106,8 @@ export function resolveDownload(
 }
 
 /**
- * The reverse of resolveDownload: the paths that serve a certificate or a target (`downloads` of
- * the upload response, plan §7.1, and of the read API's lists). Every config path mapped to
- * `reference`, in code-unit order, each DER path followed by its `<path>.pem`. Only path table
- * entries, never a store key.
+ * The reverse of resolveDownload: every config path mapped to `reference`, in code-unit order, each
+ * DER path followed by its `<path>.pem`.
  */
 export function downloadPaths(config: Config, reference: ConfigPath): string[] {
   const matches = ([, entry]: [string, ConfigPath]) =>
@@ -154,19 +142,19 @@ const DER_CONTENT_TYPES: Record<DownloadKind, string> = {
 
 const PEM_CONTENT_TYPE = "application/x-pem-file";
 
-// No s-maxage / stale-while-revalidate. A certificate path never changes its bytes (V7; a two-step
-// rebind is the operator's responsibility).
-const CERTIFICATE_CACHE_CONTROL = "public, max-age=31536000, immutable";
+/**
+ * Cache-Control of bytes that never change at their URL: certificate downloads (V7; a two-step
+ * rebind is the operator's responsibility), blobs by SHA-256 and hashed UI assets.
+ */
+export const IMMUTABLE = "public, max-age=31536000, immutable";
 
 /** CRL max-age bounds in seconds: an expired CRL still gets 60, a far one at most 3600. */
 const CRL_MAX_AGE = { min: 60, max: 3600, withoutNextUpdate: 300 } as const;
 
-/** The PkiKind of a download kind: derToPem and pemLength take it. */
 export function pemKind(kind: DownloadKind): PkiKind {
   return kind === "certificate" ? "certificate" : "crl";
 }
 
-// Whole seconds until nextUpdate, clamped.
 function crlMaxAge(nextUpdate: Date | null, now: Date): number {
   if (nextUpdate === null) {
     return CRL_MAX_AGE.withoutNextUpdate;
@@ -177,20 +165,15 @@ function crlMaxAge(nextUpdate: Date | null, now: Date): number {
 
 function cacheControl(found: FoundDownload, now: Date): string {
   return found.kind === "certificate"
-    ? CERTIFICATE_CACHE_CONTROL
+    ? IMMUTABLE
     : `public, max-age=${crlMaxAge(found.nextUpdate, now)}, must-revalidate`;
 }
 
 /**
- * Response headers of a found download, the same for GET, HEAD and (ETag, Cache-Control) 304:
- *
- * - ETag `"<sha256>"` (DER) or `"<sha256>-pem"` (PEM) from the catalog digest; a store ETag never
- *   leaves the adapter.
- * - Content-Length the catalog size, or pemLength of it: known without reading the blob.
- * - Cache-Control: certificates immutable for a year; CRLs `max-age` = whole seconds until
- *   nextUpdate clamped to [60, 3600], 300 without nextUpdate, and must-revalidate.
- * - Last-Modified: importedAt / publishedAt as an HTTP date. Informational only:
- *   If-Modified-Since is not evaluated (one-second precision; the ETag covers revalidation).
+ * Response headers of a found download, the same for GET, HEAD and a 304. ETag and Content-Length
+ * come from the catalog, so neither needs the blob, and a store ETag never leaves the adapter.
+ * Last-Modified is informational only: If-Modified-Since is not evaluated (one-second precision;
+ * the ETag covers revalidation).
  */
 export function downloadHeaders(found: FoundDownload, now: Date): DownloadHeaders {
   const pem = found.format === "pem";
@@ -207,11 +190,9 @@ export function downloadHeaders(found: FoundDownload, now: Date): DownloadHeader
 const stripWeak = (tag: string) => tag.replace(/^W\//, "");
 
 /**
- * Whether `If-None-Match` matches `etag` (a quoted download ETag), as hono/etag's etagMatches
- * compares, plus `*`: the whole header trimmed is `*`, or one of its comma-separated members,
- * trimmed, equals `etag` once a `W/` prefix is removed from both (weak comparison, RFC 9110
- * §13.1.2). An unquoted value never matches (the client gets a full download); a missing or empty
- * header never does.
+ * Whether `If-None-Match` matches the quoted download `etag`, as hono/etag's etagMatches compares,
+ * plus `*`: weak comparison (RFC 9110 §13.1.2) of each trimmed comma-separated member. An unquoted
+ * value never matches (the client gets a full download); a missing or empty header never does.
  */
 export function ifNoneMatchHit(header: string | null | undefined, etag: string): boolean {
   if (header === null || header === undefined) {

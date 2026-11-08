@@ -1,4 +1,4 @@
-// Environment settings (plan §4.2), shared by the Node and Workers entries: pure zod, no node:*.
+// Environment settings, shared by the Node and Workers entries: pure zod, no node:*.
 // Node reads `*_FILE` variants first (resolveFileVariants with readFileSync); Workers pass their
 // vars / secrets straight to parseSettings.
 import { z } from "zod";
@@ -66,9 +66,9 @@ const SettingsSchema = z
   }));
 
 /**
- * Validates the environment and applies the plan §4.2 defaults; `parseSettings({})` is the
- * all-defaults configuration (tests). Unknown variables are ignored. On failure `error` lists
- * every invalid variable, one per line.
+ * Validates the environment and applies the defaults; `parseSettings({})` is the all-defaults
+ * configuration (tests). Unknown variables are ignored. On failure `error` lists every invalid
+ * variable, one per line.
  */
 export function parseSettings(env: Env): SettingsResult<z.output<typeof SettingsSchema>> {
   const result = SettingsSchema.safeParse(env);

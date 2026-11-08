@@ -1,17 +1,5 @@
-// CRL targets (plan §7.1): the upload POST /api/v1/crls hands one CRL, the raw request body, to
-// publishCrl (src/core/publish.ts) and maps its result; GET /api/v1/crls is the target list of
-// src/core/views.ts. Public routes, so this sub-app joins the AppType chain. The upload's format is
-// recognized from the bytes. The list has one item per configured target (id = target UUID, never
-// a store key), no pagination.
-//
-// The upload's route middleware, in this order: bearerAuth while AIA_UPLOAD_TOKEN is set (a
-// missing or wrong token is 401 + WWW-Authenticate, a malformed Authorization header 400; unset,
-// uploads need no token); the media type gate (415 with details); bodyLimit
-// (AIA_MAX_UPLOAD_BYTES, 413, also for a streamed body without Content-Length). So an anonymous
-// client never gets its body read, nor a 413 that tells it the limit. Failures are thrown as
-// ApiError / HTTPException (and, for the list, store errors): onError writes every envelope
-// (no-store), and the handlers only return successes. HEAD of the list is Hono's automatic HEAD of
-// its GET.
+// CRL targets: the list and the upload. Failures are thrown, so onError writes every envelope
+// (no-store). HEAD of the list is Hono's automatic HEAD of its GET.
 import { createRoute, OpenAPIHono, z } from "@hono/zod-openapi";
 import { bearerAuth } from "hono/bearer-auth";
 import { bodyLimit } from "hono/body-limit";
@@ -61,6 +49,8 @@ function uploadCrlRoute(settings: AppSettings) {
       "`Authorization: Bearer <AIA_UPLOAD_TOKEN>` is needed only while that token is set.",
     tags: TAGS,
     security,
+    // Auth first: an anonymous client never gets its body read, nor a 413 that tells it the limit.
+    // bodyLimit also stops a streamed body without Content-Length.
     middleware: [
       ...(settings.uploadToken === undefined ? [] : [bearerAuth({ token: settings.uploadToken })]),
       crlMediaType,
@@ -135,7 +125,7 @@ const FAILURES = {
   concurrent_update: "The catalog kept changing concurrently: retry the upload",
 } as const satisfies Record<PublishErrorCode, string>;
 
-/** The failure's status and message; details as publishCrl gives them (concurrent_update has none). */
+/** Status and message; details as publishCrl gives them (concurrent_update has none). */
 function publishError(failure: PublishFailure): ApiError {
   const message =
     failure.error === "issuer_not_found" && "reason" in failure.details

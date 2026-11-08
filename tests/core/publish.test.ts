@@ -6,9 +6,10 @@ import type { CurrentCrl } from "../../src/core/catalog.ts";
 import { crlHistoryKey, crlVersionName } from "../../src/core/history.ts";
 import { SIGNATURE_ALG_NAMES } from "../../src/core/pki/constants.ts";
 import { MAX_CRL_NUMBER_OCTETS } from "../../src/core/pki/extensions.ts";
-import { getSKIHex, parseCertificate, parseCRL } from "../../src/core/pki/parsers.ts";
+import { parseCertificate, parseCRL } from "../../src/core/pki/parsers.ts";
 import type { PublishErrorCode } from "../../src/core/publish.ts";
 import type { ObjectStore } from "../../src/core/store.ts";
+import { buildCertificateSummary } from "../../src/core/summary.ts";
 import { MemoryStore } from "../../src/storage/memory.ts";
 import { cert, crlEntry, fixture, manifest } from "../fixtures/pki.ts";
 import { currentCrl } from "../helpers/catalog.ts";
@@ -109,8 +110,11 @@ describe("publishCrl: the freshness rules on the manifest scenarios", () => {
   });
 });
 
+// The SKI of the CA that signed the rogue CRLs, which no configured certificate has.
+const rogueCa = fixture(cert("rogue-ca").der);
+const rogueKeyId = (await buildCertificateSummary(parseCertificate(rogueCa), rogueCa)).subjectKeyId;
+
 describe("publishCrl: rejections", () => {
-  const rogueKeyId = getSKIHex(parseCertificate(fixture(cert("rogue-ca").der)));
   const future = "crls/issuing-ca-1/full-future.der";
 
   // One row per error code and details shape: the parser and policy tests own the reasons.

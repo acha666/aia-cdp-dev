@@ -3,8 +3,7 @@
 import { VueQueryPlugin } from "@tanstack/vue-query";
 import { flushPromises, mount } from "@vue/test-utils";
 import type { VueWrapper } from "@vue/test-utils";
-import { afterEach, describe, expect, it, vi } from "vitest";
-import { toast } from "vue-sonner";
+import { afterEach, describe, expect, it } from "vitest";
 import { envelope, publishedCrl, stubApi, targetItems, testQueryClient } from "./helpers";
 import type { Handler } from "./helpers";
 import { queries } from "@/client/queries";
@@ -106,14 +105,10 @@ describe("CrlUploadCard", () => {
     ["updated", "Published to Issuing CA 01: it replaces the previous CRL."],
     ["unchanged", "Issuing CA 01 already serves this CRL; nothing changed."],
   ] as const)("reports %s as a success with the target's label", async (outcome, text) => {
-    const success = vi.spyOn(toast, "success");
-    const error = vi.spyOn(toast, "error");
     const { card } = render(ok(outcome));
     await paste(card, PEM);
     await submit(card);
 
-    expect(success).toHaveBeenCalledWith(text);
-    expect(error).not.toHaveBeenCalled();
     const alert = card.get('[data-testid="upload-success"]');
     expect(alert.text()).toContain(text);
     expect(alert.text()).toContain("CRL #3");
@@ -155,13 +150,11 @@ describe("CrlUploadCard", () => {
       () => Promise.reject(new TypeError("Failed to fetch")),
       ["The server could not be reached."],
     ],
-  ])("shows %s as a toast and an inline error", async (_, answer, [message, ...more]) => {
-    const error = vi.spyOn(toast, "error");
+  ])("shows %s as an inline error", async (_, answer, [message, ...more]) => {
     const { card } = render(answer);
     await paste(card, PEM);
     await submit(card);
 
-    expect(error).toHaveBeenCalledWith(message);
     const alert = card.get('[data-testid="upload-error"]');
     expect(alert.attributes("role")).toBe("alert");
     for (const text of ["Upload failed", message!, ...more]) {

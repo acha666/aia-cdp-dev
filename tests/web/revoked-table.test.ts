@@ -38,9 +38,9 @@ const entries = (count: number) =>
     entry((index + 1).toString(16).padStart(4, "0"), "2026-01-01T00:00:00Z")
   );
 
-const extension = (extnID: string, value: string, critical = false): PlainExtension => ({
+const extension = (extnID: string, value: string): PlainExtension => ({
   extnID,
-  critical,
+  critical: false,
   value: bytes(value),
 });
 
@@ -86,15 +86,13 @@ describe("RevokedTable", () => {
     expect(table.get('[data-testid="revoked-range"]').text()).toBe("1–200 of 250");
   });
 
-  it("fills reason, invalidity date and indirect issuer from the entry extensions", () => {
+  it("fills reason and invalidity date from the entry extensions", () => {
     // Dates show in the browser's time zone (UTC+12 and later is already Jan 02).
     vi.stubEnv("TZ", "UTC");
-    // leaf-revoked in crls/issuing-ca-1/full-01: keyCompromise with an invalidity date; and an
-    // indirect CRL's certificate issuer.
+    // leaf-revoked in crls/issuing-ca-1/full-01: keyCompromise with an invalidity date.
     const revoked = entry("2002", "2026-01-01T12:00:00Z", [
       extension("2.5.29.21", "0a0101"),
       extension("2.5.29.24", `180f${ascii("20251231120000Z")}`),
-      extension("2.5.29.29", `3011820f${ascii("ca.example.test")}`, true),
     ]);
     const cells = rowTexts(render([revoked, ...entries(1)]));
 
@@ -102,8 +100,7 @@ describe("RevokedTable", () => {
     expect(cells[0]![1]).toBe("Jan 01, 2026 12:00:00 (UTC)");
     expect(cells[0]![2]).toBe("keyCompromise");
     expect(cells[0]![3]).toBe("Dec 31, 2025 12:00:00 (UTC)");
-    expect(cells[0]![4]).toBe("DNS: ca.example.test");
-    expect(cells[1]!.slice(2)).toEqual(["—", "—", "—"]);
+    expect(cells[1]!.slice(2)).toEqual(["—", "—"]);
   });
 
   it("expands a row with entry extensions into all of them, the hold instruction too", async () => {

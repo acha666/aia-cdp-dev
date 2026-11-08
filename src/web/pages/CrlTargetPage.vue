@@ -22,7 +22,7 @@ import { formatAlgorithm, versionText } from "@/x509/fields";
 import { SIGNATURE_ALG_NAMES } from "../../core/pki/constants.ts";
 import { plainExtension } from "../../core/pki/extensions.ts";
 
-// One CRL target (plan §8), in DetailLayout's frame: header with label, kind, status and
+// One CRL target, in DetailLayout's frame: header with label, kind, status and
 // downloads, then the current CRL in tabs (overview with the issuer link, CRL and base CRL numbers,
 // thisUpdate / nextUpdate / Next CRL Publish, algorithm and fingerprints; revoked certificates;
 // extensions). The target list gives the catalog's facts, the current CRL's DER (decoded in the

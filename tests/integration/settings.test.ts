@@ -1,4 +1,4 @@
-// The environment settings of both runtimes (plan §4.2), and the `_FILE` variants that the Node
+// The environment settings of both runtimes, and the `_FILE` variants that the Node
 // entry resolves first.
 import { describe, expect, it } from "vitest";
 import { parseSettings, resolveFileVariants } from "../../src/runtime/settings.ts";

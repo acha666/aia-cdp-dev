@@ -12,7 +12,7 @@ import { useClock } from "@/composables/useClock";
 import { formatDate, relativeTime } from "@/utils/dates";
 import { computeCertificateStatus } from "@/utils/status";
 
-// The imported certificates (plan §8): name (config label, else subject CN), issuer, validity with
+// The imported certificates: name (config label, else subject CN), issuer, validity with
 // the time left while valid, status and downloads, sorted by name. The list keeps showing while it
 // refetches; skeleton rows appear only before the first answer. On a phone (below sm) only the name
 // and the status show: with every column the table scrolls sideways inside its card, which hides

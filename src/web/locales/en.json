@@ -261,7 +261,6 @@
       "reason": "Reason",
       "extensions": "Extensions",
       "invalidSince": "Invalid since",
-      "certificateIssuer": "Certificate issuer",
       "showEntryExtensions": "Show entry extensions",
       "crlNumber": "CRL Number",
       "baseCrlNumber": "Base CRL Number",

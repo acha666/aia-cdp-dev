@@ -21,18 +21,18 @@ export type CrlTimes = Pick<
 const NEXT_PUBLISH_GRACE_MS = 60 * 60 * 1000;
 
 /**
- * Missing, malformed or inverted dates give `unknown`, never `valid`. Expiring: less than 10% of
- * notBefore → notAfter remains (a 20-year root two years ahead, a 10-year issuing CA one year).
+ * Dates out of order give `unknown`, never `valid` (the catalog's times are always valid ones).
+ * Expiring: less than 10% of notBefore → notAfter remains (a 20-year root two years ahead, a
+ * 10-year issuing CA one year).
  */
 export function computeCertificateStatus(
-  notBefore: string | null | undefined,
-  notAfter: string | null | undefined,
+  notBefore: string,
+  notAfter: string,
   nowMs: number
 ): CertificateStatusState {
-  const start = Date.parse(notBefore ?? "");
-  const end = Date.parse(notAfter ?? "");
-  // A missing or malformed date is NaN, which compares false.
-  if (!(start <= end)) {
+  const start = Date.parse(notBefore);
+  const end = Date.parse(notAfter);
+  if (end < start) {
     return "unknown";
   }
   if (nowMs < start) {
@@ -53,14 +53,17 @@ export function computeCertificateStatus(
  * - otherwise (e.g. an offline root's CRL): when less than 20% of thisUpdate → nextUpdate remains.
  */
 export function computeCrlStatus(
-  thisUpdate: string | null | undefined,
-  nextUpdate: string | null | undefined,
+  thisUpdate: string,
+  nextUpdate: string | null,
   nowMs: number,
   nextPublish: string | null = null
 ): CrlStatusState {
-  const start = Date.parse(thisUpdate ?? "");
-  const end = Date.parse(nextUpdate ?? "");
-  if (!(start < end)) {
+  if (nextUpdate === null) {
+    return "unknown";
+  }
+  const start = Date.parse(thisUpdate);
+  const end = Date.parse(nextUpdate);
+  if (end <= start) {
     return "unknown";
   }
   if (nowMs < start) {
@@ -69,11 +72,11 @@ export function computeCrlStatus(
   if (nowMs > end) {
     return "expired";
   }
-  const publish = Date.parse(nextPublish ?? "");
   // elapsed > 80% of the period, in integers.
-  const stale = Number.isNaN(publish)
-    ? (nowMs - start) * 5 > (end - start) * 4
-    : nowMs > publish + NEXT_PUBLISH_GRACE_MS;
+  const stale =
+    nextPublish === null
+      ? (nowMs - start) * 5 > (end - start) * 4
+      : nowMs > Date.parse(nextPublish) + NEXT_PUBLISH_GRACE_MS;
   return stale ? "stale" : "current";
 }
 

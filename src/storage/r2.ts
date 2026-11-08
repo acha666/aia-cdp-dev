@@ -1,4 +1,4 @@
-// R2 ObjectStore adapter (plan §5.4).
+// R2 ObjectStore adapter.
 //
 // The bucket is typed structurally (R2BucketLike) instead of against the Workers global R2Bucket,
 // so this file also compiles in the Node program (tests drive it through a fake bucket and through

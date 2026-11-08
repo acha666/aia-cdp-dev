@@ -1,13 +1,10 @@
-// A CRL version in the store (plan §5.1): its name, blob key and history marker key, which
-// publishCrl (./publish.ts) writes; and a CRL target's history (plan §5.3), for the admin API:
-// every version that was published as the target's current, from one `list` of its blob prefix and
-// one of its marker prefix, paired by name, so no blob or marker is read. A version is history when
-// it has a marker (a superseded current) or is the catalog's current. A blob without either is an
-// orphan of a lost publish race or a crash and is not listed. The catalog is read before the lists:
-// a publish writes the blob and the marker before the catalog and nothing removes them, so the
-// lists hold every version that catalog names.
+// CRL version keys (written by ./publish.ts) and a target's history. A version is history when it
+// has a marker (a superseded current) or is the catalog's current; a blob with neither is an orphan
+// of a lost publish race or a crash and is not listed. The catalog is read before the lists: a
+// publish writes the blob and the marker before the catalog and nothing removes them, so the lists
+// hold every version that catalog names.
 import { z } from "zod";
-import { CrlSummarySchema, readState, Sha256Hex, TargetId } from "./catalog.ts";
+import { CrlSummarySchema, readState, Sha256Hex, Size, TargetId } from "./catalog.ts";
 import type { CrlSummary } from "./catalog.ts";
 import { formatGeneralizedTime } from "./pki/asn1.ts";
 import { readBlob } from "./store.ts";
@@ -16,10 +13,8 @@ import type { ObjectStore } from "./store.ts";
 // Store layout ------------------------------------------------------------------------------------
 
 /**
- * `<YYYYMMDDHHMMSSZ of thisUpdate>-<crlNumber or "none">-<sha256>`: the name of one CRL version,
- * shared by its blob and by its history marker (plan §5.1). The fixed-width time first makes a
- * `list` of either prefix sort by thisUpdate; the number lets a target's history be listed without
- * reading the blobs.
+ * `<YYYYMMDDHHMMSSZ of thisUpdate>-<crlNumber or "none">-<sha256>`, shared by blob and marker. The
+ * fixed-width time first makes a `list` sort by thisUpdate; the number spares reading the blobs.
  */
 export function crlVersionName(
   summary: Pick<CrlSummary, "thisUpdate" | "crlNumber">,
@@ -33,8 +28,8 @@ const VERSION_NAME =
   /^(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})(\d{2})Z-(0|[1-9][0-9]*|none)-([0-9a-f]{64})$/;
 
 /**
- * The fields of a crlVersionName, or undefined for a name of another shape (only an out-of-band
- * write makes one). `thisUpdate` in the catalog's format, exactly: CRL times are whole seconds.
+ * Returns undefined for a name of another shape (only an out-of-band write makes one). `thisUpdate`
+ * is in the catalog's format exactly, since CRL times are whole seconds.
  */
 function parseCrlVersionName(
   name: string
@@ -57,7 +52,7 @@ const MARKER_EXTENSION = ".json";
 const crlBlobPrefix = (targetId: string) => `blobs/crls/${targetId}/`;
 const crlHistoryPrefix = (targetId: string) => `history/${targetId}/`;
 
-/** Store key of a published CRL's DER (plan §5.1); current and history share it. */
+/** Store key of a published CRL's DER; current and history share it. */
 export function crlBlobKey(
   targetId: string,
   summary: Pick<CrlSummary, "thisUpdate" | "crlNumber">,
@@ -66,10 +61,7 @@ export function crlBlobKey(
   return `${crlBlobPrefix(targetId)}${crlVersionName(summary, sha256)}${BLOB_EXTENSION}`;
 }
 
-/**
- * Store key of the history marker of one CRL version of a target (plan §5.1, §5.3): the name of
- * its blob as JSON, so that a `list` of both prefixes pairs them without reading either.
- */
+/** Named like its blob, so that a `list` of both prefixes pairs them without reading either. */
 export function crlHistoryKey(
   targetId: string,
   summary: Pick<CrlSummary, "thisUpdate" | "crlNumber">,
@@ -78,21 +70,15 @@ export function crlHistoryKey(
   return `${crlHistoryPrefix(targetId)}${crlVersionName(summary, sha256)}${MARKER_EXTENSION}`;
 }
 
-// The version name of a listed key: the key without `prefix` and `extension`; "" (which is no
-// version name) for a key with another extension.
+// Returns "" (which is no version name) for a key with another extension.
 function versionName(key: string, prefix: string, extension: string): string {
   return key.endsWith(extension) ? key.slice(prefix.length, -extension.length) : "";
 }
 
 // History -----------------------------------------------------------------------------------------
 
-/** A DER size in bytes (the http bodies share it). */
-export const Size = z.number().int().positive().describe("DER size in bytes");
-
-/** One version of a target's history. */
 const CrlHistoryEntry = z
   .object({
-    /** SHA-256 of the DER. */
     sha256: Sha256Hex,
     crlNumber: CrlSummarySchema.shape.crlNumber,
     thisUpdate: CrlSummarySchema.shape.thisUpdate,
@@ -182,8 +168,8 @@ export async function listHistory(
 }
 
 /**
- * The DER of the history entry with digest `sha256`; not_found when the target's history has no
- * such entry. Served as stored, like a download: the key is content-addressed.
+ * The DER of the target's history entry `sha256` as stored, like a download (the key is
+ * content-addressed); not_found when its history has no such entry.
  */
 export async function getHistoryBlob(
   deps: { store: ObjectStore },

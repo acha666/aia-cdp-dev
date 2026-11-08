@@ -1,5 +1,5 @@
-// Health check (plan §7.1): config.json and catalog.json are read from the store, so a store that
-// cannot serve them or an invalid stored object shows in the report.
+// Health check: config.json and catalog.json are read from the store, so a store that cannot serve
+// them or an invalid stored object shows in the report.
 //
 // The configuration is what readState returns: the config rules are checked when a config is
 // applied, so a stored config is only invalid when it is not JSON or fails its schema.

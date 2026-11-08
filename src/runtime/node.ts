@@ -1,4 +1,4 @@
-// Node 26 entry (plan §4.2): FsStore on AIA_DATA_DIR, the built UI from AIA_STATIC_DIR.
+// Node 26 entry: FsStore on AIA_DATA_DIR, the built UI from AIA_STATIC_DIR.
 // Production: node --enable-source-maps dist/server/runtime/node.js; development and tests run the
 // source directly: node src/runtime/node.ts (type stripping).
 import { constants, accessSync, readFileSync, statSync } from "node:fs";

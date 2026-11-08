@@ -2,37 +2,28 @@
 // parameters), the public key's size or curve, and the unique identifiers. The RSASSA-PSS integers
 // are read from their contents octets: PKIjs's numbers are asn1js's valueDec, 0 from four contents
 // octets on.
-import { Constructed, Integer, ObjectIdentifier, Sequence } from "asn1js";
+import { ObjectIdentifier, Sequence } from "asn1js";
 import * as pkijs from "pkijs";
-import { integerNumber } from "../../core/pki/asn1.ts";
-import {
-  CURVE_NAMES,
-  HASH_ALG_NAMES,
-  MASK_GEN_ALG_NAMES,
-  OID_DICTIONARY,
-} from "../../core/pki/constants.ts";
+import { CURVE_NAMES, HASH_ALG_NAMES } from "../../core/pki/constants.ts";
+import { INTEGER, context, expectTag, explicit, hasTag, readInteger } from "../../core/pki/der.ts";
 import { toUpperHex } from "../../core/digest.ts";
 import type { I18nText } from "@/i18n";
+import { MASK_GEN_ALG_NAMES, oidName } from "./oid-names";
 
 /** "v1", "v2", "v3" from the version field (0, 1, 2; absent is v1). */
 export const versionText = (version: number | undefined) => `v${String((version ?? 0) + 1)}`;
 
 /** An OID's name from `names`, else from the dictionary, else the OID. */
-const nameOf = (oid: string, names?: Record<string, string>) =>
-  names?.[oid] ?? OID_DICTIONARY[oid]?.name ?? oid;
+const nameOf = (oid: string, names?: Record<string, string>) => oidName(oid, names) ?? oid;
 
 const RSASSA_PSS_OID = "1.2.840.113549.1.1.10";
 
-/**
- * The INTEGER of the [tagNumber] EXPLICIT field of `params`, as a number; undefined when the field
- * is absent (RFC 4055 §3.1: saltLength [2]).
- */
-function explicitInteger(params: Sequence, tagNumber: number): number | undefined {
-  const field = params.valueBlock.value.find(
-    (block) => block.idBlock.tagClass === 3 && block.idBlock.tagNumber === tagNumber
-  );
-  const [value] = field instanceof Constructed ? field.valueBlock.value : [];
-  return value instanceof Integer ? integerNumber(value) : undefined;
+const SALT_LENGTH = context(2);
+
+/** saltLength [2] EXPLICIT INTEGER of RSASSA-PSS-params (RFC 4055 §3.1); undefined when absent. */
+function saltLength(params: Sequence): number | undefined {
+  const field = params.valueBlock.value.find((block) => hasTag(block, SALT_LENGTH));
+  return field && readInteger(expectTag(explicit(field, SALT_LENGTH), INTEGER));
 }
 
 /** "SHA-256, MGF1/SHA-256, salt 32"; undefined when the parameters do not decode. */
@@ -50,7 +41,7 @@ function pssText(params: Sequence, i18n: Pick<I18nText, "t">): string | undefine
       }
     }
     // PKIjs's default (20, RFC 4055 §3.1) when absent.
-    const salt = i18n.t("algorithm.salt", { length: explicitInteger(params, 2) ?? pss.saltLength });
+    const salt = i18n.t("algorithm.salt", { length: saltLength(params) ?? pss.saltLength });
     return `${nameOf(pss.hashAlgorithm.algorithmId, HASH_ALG_NAMES)}, ${mask}, ${salt}`;
   } catch {
     return undefined;

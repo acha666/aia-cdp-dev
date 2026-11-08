@@ -11,7 +11,7 @@ import KindBadge from "@/components/KindBadge.vue";
 import NameDetails from "@/components/x509/NameDetails.vue";
 import type en from "@/locales/en.json";
 import { formatDate } from "@/utils/dates";
-import { compareTargets } from "@/utils/labels";
+import { compareTargets } from "@/utils/targets";
 import { rowOf, rows } from "@/utils/values";
 import { formatAlgorithm, publicKeyInfo, uniqueIdHex, versionText } from "@/x509/fields";
 

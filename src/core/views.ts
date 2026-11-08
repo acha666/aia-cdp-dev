@@ -1,9 +1,9 @@
-// The read model of the public API (plan §5.6, §7.1): the certificate and CRL target lists, built
-// from config.json and catalog.json (one `get` each per request, through readState in
-// ./catalog.ts), and the blob a SHA-256 names. Their shapes are the response schemas of
-// src/http/schemas.ts, against which the routes type-check every view. Ids and kinds come from the
-// catalog and config, never from a store key, and a store key never appears in a view. Nothing here
-// decodes a certificate or a CRL: the UI decodes the blob itself.
+// The read model of the public API: the certificate and CRL target lists, built from config.json
+// and catalog.json (one `get` each per request, through readState in ./catalog.ts), and the blob a
+// SHA-256 names. Their shapes are the response schemas of src/http/schemas.ts, against which the
+// routes type-check every view. Ids and kinds come from the catalog and config, never from a store
+// key, and a store key never appears in a view. Nothing here decodes a certificate or a CRL: the UI
+// decodes the blob itself.
 //
 // Lists are complete arrays (no pagination), certificates in id order and targets in targetId
 // order (code units; the UI sorts for display).

@@ -1,9 +1,8 @@
-// The one HTTP application behind both runtimes (plan §4.4, §7.3). It knows nothing about a
-// runtime env: the store, clock, settings, log sink and UI fallback come in as AppDeps.
+// The one HTTP application behind both runtimes; it never sees a runtime env, only AppDeps.
 //
-// Rules: every route is registered here, before the first request (SmartRouter freezes then);
-// never `app.get("*")` (methodNotAllowed would turn every unknown-path POST into 405) — the UI
-// fallback lives in notFound.
+// Every route is registered here, before the first request (SmartRouter freezes then). Never
+// `app.get("*")`: methodNotAllowed would turn every unknown-path POST into 405, so the UI fallback
+// lives in notFound.
 import { OpenAPIHono } from "@hono/zod-openapi";
 import { methodNotAllowed } from "hono/method-not-allowed";
 import { securityHeaders } from "./csp.ts";
@@ -39,17 +38,14 @@ export function createApp(deps: AppDeps) {
   app.onError(createErrorHandler(deps.log));
   app.notFound(uiFallback(deps));
 
-  // Order (plan §7.3): secureHeaders → request log → methodNotAllowed → (admin: token check,
-  // bearerAuth, bodyLimit in routes/admin.ts; CRL upload: optional bearerAuth, media type gate,
-  // bodyLimit as route middleware in routes/crls.ts) → routes.
-  // secureHeaders covers every response, the UI's too (ui.ts copies the deps.ui answer first); its
-  // CSP is the UI's (csp.ts) and changes nothing for JSON or downloads.
+  // The admin and upload routes add their own auth and bodyLimit after these (routes/admin.ts,
+  // routes/crls.ts). secureHeaders covers every response, the UI's too (ui.ts copies the deps.ui
+  // answer first); its CSP is the UI's (csp.ts) and changes nothing for JSON or downloads.
   app.use(securityHeaders);
   app.use(requestLog(deps.log));
   app.use(methodNotAllowed({ app, onMethodNotAllowed }));
 
-  // Generated from the route registry on the first request and kept for the life of this app
-  // (one per process / isolate). Not part of the document itself.
+  // Kept for the life of this app (one per process / isolate). This route is not in the document.
   let openapiJson: string | undefined;
   app.get("/api/v1/openapi.json", (c) => {
     openapiJson ??= JSON.stringify(app.getOpenAPI31Document(OPENAPI_CONFIG));
@@ -59,11 +55,9 @@ export function createApp(deps: AppDeps) {
     });
   });
 
-  // The chained value carries the route types: AppType (hc<AppType>) is inferred from it. Only
-  // the public routes (health, certificates with the blobs, CRL targets with the upload) join the chain;
-  // the admin routes are served and documented, but stay out of the web client's types. The
-  // download routes (/ca/*, /crl/*, /dcrl/*) are a plain Hono app: neither in AppType nor in the
-  // OpenAPI document.
+  // AppType (hc<AppType>) is inferred from the chained value, so only the public routes join it.
+  // The admin routes are served and documented but stay out of the web client's types; the
+  // download routes are a plain Hono app, neither in AppType nor in the OpenAPI document.
   const routes = app
     .route("/api/v1", healthRoutes(deps))
     .route("/api/v1", certificateRoutes(deps))

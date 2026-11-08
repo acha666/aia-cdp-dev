@@ -1,6 +1,5 @@
-// Error envelope and handlers (plan §7.3, implementation §2.6): a success body is the resource
-// itself, a failure is one envelope `{ error: { code, message, details? } }`, and exception text
-// never reaches a response.
+// Error envelope and handlers: a success body is the resource itself, a failure is one envelope
+// `{ error: { code, message, details? } }`, and exception text never reaches a response.
 import type { Hook, z } from "@hono/zod-openapi";
 import type { Context, Env, ErrorHandler } from "hono";
 import { HTTPException } from "hono/http-exception";
@@ -24,7 +23,7 @@ export const ERROR_MESSAGES = {
   internal: "Internal server error",
 } as const;
 
-/** API JSON, including every error, is never cached (implementation §2.6). */
+/** API JSON, including every error, is never cached. */
 export const NO_STORE = { "Cache-Control": "no-store" } as const;
 
 /** Thrown by http/core code for expected failures; mapped 1:1 onto the envelope by onError. */

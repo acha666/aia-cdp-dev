@@ -16,7 +16,7 @@ import { relativeTime } from "@/utils/dates";
 import { computeCertificateStatus } from "@/utils/status";
 import { plainExtension } from "../../core/pki/extensions.ts";
 
-// One certificate (plan §8), in DetailLayout's frame: header with name, status and downloads; tabs
+// One certificate, in DetailLayout's frame: header with name, status and downloads; tabs
 // for the overview, the extensions and, when the configuration serves a .pem path, the PEM text.
 // The certificate list gives the catalog's facts, its DER (decoded in the browser) the rest; an id
 // the list does not have is not found. `id` matched the router's pattern, so it is safe to put into

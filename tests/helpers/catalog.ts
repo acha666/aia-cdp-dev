@@ -10,10 +10,7 @@ import {
 import { parseCertificate, parseCRL } from "../../src/core/pki/parsers.ts";
 import { crlBlobKey } from "../../src/core/history.ts";
 import type { ObjectStore } from "../../src/core/store.ts";
-import {
-  buildCertificateSummary,
-  buildCrlSummary,
-} from "../../src/core/summary/catalog-summary.ts";
+import { buildCertificateSummary, buildCrlSummary } from "../../src/core/summary.ts";
 import { cert, crlEntry, fixture, NOW } from "../fixtures/pki.ts";
 
 /**

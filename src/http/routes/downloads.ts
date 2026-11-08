@@ -1,7 +1,6 @@
-// Download routes (plan §6): `/ca/*`, `/crl/*` and `/dcrl/*` serve what the current config's path
-// table and the catalog name (src/core/resources.ts), DER as stored and PEM derived on read. A
-// plain Hono sub-app: not in the OpenAPI document, not part of AppType. HEAD comes with each GET
-// route; other methods get onMethodNotAllowed's text/plain 405.
+// Download routes: serve what the current config's path table and the catalog name
+// (src/core/resources.ts), DER as stored and PEM derived on read. Other methods get
+// onMethodNotAllowed's text/plain 405.
 //
 // The request path is looked up in the path table and never used as a store key; it is
 // `c.req.path`, Hono's decodeURI form, and is not decoded again. If-None-Match is compared by hand
@@ -20,15 +19,9 @@ import { textNotFound } from "../ui.ts";
 const DOWNLOAD_ROUTES = ["/ca/*", "/crl/*", "/dcrl/*"] as const;
 
 /**
- * One download request, in this order:
- *
- * 1. config.json and catalog.json, one `get` each: a missing config.json is an empty path table,
- *    an invalid one (or catalog.json) throws, which is a 500.
- * 2. not_found → text/plain 404, no-store; inconsistent → a thrown Error, the generic 500.
- * 3. If-None-Match hit → 304 with ETag and Cache-Control only (RFC 9110 §15.4.5).
- * 4. HEAD → 200 with every header, Content-Length from the catalog; the blob is not read.
- * 5. GET → the blob: missing → a thrown Error, the generic 500 (a 404 would hide a broken store).
- *    DER as stored, PEM as derToPem of it; Content-Length is the length of the body sent.
+ * A missing config.json is an empty path table; an invalid config.json or catalog.json is a 500.
+ * A 304 carries only ETag and Cache-Control (RFC 9110 §15.4.5). A blob the catalog names but the
+ * store lacks is a 500: a 404 would hide a broken store.
  *
  * Every 200 sets Content-Type itself: left unset, a GET reached a Node socket as text/plain while
  * the HEAD had none.

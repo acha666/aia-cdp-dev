@@ -65,7 +65,7 @@ export const MAX_CRL_NUMBER_OCTETS = 20;
  * A CRL Number or Delta CRL Indicator: one INTEGER (tag 2, not ENUMERATED), not negative (the
  * catalog stores a decimal), at most MAX_CRL_NUMBER_OCTETS contents octets. Throws otherwise.
  */
-export function readCRLInteger(value: BaseBlock): bigint {
+export function readCrlNumber(value: BaseBlock): bigint {
   const integer = expectTag(value, INTEGER);
   if (contents(integer).length > MAX_CRL_NUMBER_OCTETS) {
     throw new Error(`CRL number longer than ${MAX_CRL_NUMBER_OCTETS} octets`);

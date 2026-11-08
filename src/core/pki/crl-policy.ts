@@ -1,5 +1,5 @@
-// Extension and clock policy of an uploaded CRL (plan §6). checkCrlPolicy runs on parseCrlHeader's
-// CRL before the signature check (verify.ts), checkEntryPolicy on the whole CRL once the signature
+// Extension and clock policy of an uploaded CRL. checkCrlPolicy runs on parseCrlHeader's CRL
+// before the signature check (verify.ts), checkEntryPolicy on the whole CRL once the signature
 // verified. Only what the service itself relies on is checked: unknown extensions, critical or
 // not, are the CA's business.
 import type { Extension } from "pkijs";
@@ -19,9 +19,9 @@ const ISSUING_DISTRIBUTION_POINT_OID = "2.5.29.28";
 const CERTIFICATE_ISSUER_OID = "2.5.29.29";
 
 /**
- * A violation, one variant per error code of implementation §2.6; publishCrl maps `error` and
- * `details` to the envelope as they are and keeps `detail` for its log line. `serialNumber` (the
- * entry of an entry extension) is uppercase hex like the catalog's.
+ * A violation, one variant per error code; publishCrl maps `error` and `details` to the envelope
+ * as they are and keeps `detail` for its log line. `serialNumber` (the entry of an entry
+ * extension) is uppercase hex like the catalog's.
  */
 export type CrlPolicyFailure =
   | {
@@ -41,7 +41,7 @@ export type CrlPolicyFailure =
 export type CrlPolicyResult =
   | {
       ok: true;
-      /** nextUpdate has passed: accepted, and logged (plan §6). */
+      /** nextUpdate has passed: accepted, and logged. */
       expired: boolean;
     }
   | CrlPolicyFailure;

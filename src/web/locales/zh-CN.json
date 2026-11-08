@@ -261,7 +261,6 @@
       "reason": "原因",
       "extensions": "扩展",
       "invalidSince": "失效起始",
-      "certificateIssuer": "证书签发者",
       "showEntryExtensions": "显示条目扩展",
       "crlNumber": "CRL 编号",
       "baseCrlNumber": "基础 CRL 编号",

@@ -1,12 +1,9 @@
-// Admin routes (plan §7.2): certificate import and deletion, config.json and CRL target history. An
-// independent sub-app that createApp mounts at /api/v1 outside the AppType chain: the web client
-// only gets the public routes' types; the CLI uses plain fetch.
+// Admin routes: certificate import and deletion, config.json and CRL target history. Outside the
+// AppType chain (see app.ts); the CLI uses plain fetch.
 //
-// Every /api/v1/admin/* request first passes, in order: 503 admin_disabled while no token is
-// configured (before auth, and before the body is read); bearerAuth (constant time; a missing or
-// wrong token is 401 + WWW-Authenticate, a malformed Authorization header 400); bodyLimit
-// (AIA_MAX_UPLOAD_BYTES, 413). Failures are thrown as ApiError / HTTPException, so onError writes
-// every envelope (no-store) and the handlers only return successes.
+// While no admin token is configured, every /admin/* request is a 503 before auth and before the
+// body is read; with one, bearerAuth (constant time) runs before bodyLimit. Failures are thrown, so
+// onError writes every envelope (no-store).
 import { createRoute, OpenAPIHono, z } from "@hono/zod-openapi";
 import type { TypedResponse } from "hono";
 import { bearerAuth } from "hono/bearer-auth";

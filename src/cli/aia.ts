@@ -1,7 +1,6 @@
-// aia: the command-line client of the admin API and the CRL upload route (plan §7.4). A thin HTTP
-// client using Commander and fetch. This file declares the command tree; Commander parses the
-// arguments and generates help. client.ts holds the service access and the token rules,
-// commands.ts the commands.
+// aia: the command-line client of the admin API and the CRL upload route. A thin HTTP client using
+// Commander and fetch. This file declares the command tree; Commander parses the arguments and
+// generates help. client.ts holds the service access and the token rules, commands.ts the commands.
 //
 //   node src/cli/aia.ts <command> …          (pnpm aia …; Node runs the source)
 //   node dist/server/cli/aia.js <command> …  (the Docker image)

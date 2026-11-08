@@ -4,12 +4,12 @@ import {
   CrlKind,
   CrlSummarySchema,
   Sha256Hex,
+  Size,
   TargetId,
   Timestamp,
 } from "../core/catalog.ts";
-import { Size } from "../core/history.ts";
 
-/** All API failures use the same envelope. Codes and details describe the failure. */
+/** All API failures use the same envelope. */
 export const ErrorResponse = z
   .object({
     error: z.object({
@@ -95,7 +95,7 @@ export const CRL_MEDIA_TYPES = [
   "application/octet-stream",
 ] as const;
 
-/** 200 / 201 of POST /api/v1/crls (plan §7.1). */
+/** 200 / 201 of POST /api/v1/crls. */
 export const PublishedCrl = z
   .object({
     /** created → 201; updated, unchanged → 200. */
@@ -116,7 +116,7 @@ export const PublishedCrl = z
   })
   .openapi("PublishedCrl");
 
-// Public reads (plan §7.1) ------------------------------------------------------------------------
+// Public reads ------------------------------------------------------------------------------------
 // The bodies of src/core/views.ts: catalog facts only. The UI decodes a certificate or CRL from its
 // blob (GET /api/v1/blobs/{sha256}).
 
@@ -144,11 +144,10 @@ export const CertificateIdParam = z.object({
 });
 
 /**
- * Path parameter of the admin CRL routes: an RFC 9562 UUID in either case (§4:
- * case-insensitive on input), normalised to lowercase like certificate ids. Lowercased before the
- * check: z.uuid() (the validator of config.json's target ids, used here as a check, which is what
- * the deprecated z.string().uuid() does) accepts the Max UUID in lowercase only. Documented as
- * format uuid.
+ * Path parameter of the admin CRL routes: an RFC 9562 UUID in either case (§4: case-insensitive on
+ * input), normalised to lowercase like certificate ids. Lowercased before the check because
+ * z.uuid() (config.json's target id validator, run as a check like the deprecated
+ * z.string().uuid()) accepts the Max UUID in lowercase only. Documented as format uuid.
  */
 export const TargetIdParam = z.object({
   targetId: z

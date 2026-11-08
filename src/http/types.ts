@@ -1,7 +1,7 @@
 import type { ObjectStore } from "../core/store.ts";
 import type { Logger } from "./log.ts";
 
-/** Runtime-independent settings (plan §4.2); parsed from the environment by src/runtime/settings.ts. */
+/** Runtime-independent settings; parsed from the environment by src/runtime/settings.ts. */
 export interface AppSettings {
   maxUploadBytes: number;
   /** Unset: every admin route answers 503 admin_disabled. */
@@ -10,7 +10,7 @@ export interface AppSettings {
   uploadToken?: string;
 }
 
-/** Everything the app needs from its runtime (plan §4.4). The app never sees a runtime env. */
+/** Everything the app needs from its runtime. The app never sees a runtime env. */
 export interface AppDeps {
   store: ObjectStore;
   now: () => Date;

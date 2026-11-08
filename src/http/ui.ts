@@ -1,7 +1,8 @@
-// Reserved prefixes and the UI fallback (plan §4.4). Both runtimes share these rules: the Workers
-// SPA asset layer and the Node static handler are only reached through deps.ui, so /api and
-// download-prefix misses never become 200 HTML.
+// Reserved prefixes and the UI fallback. Both runtimes share these rules: the Workers SPA asset
+// layer and the Node static handler are only reached through deps.ui, so /api and download-prefix
+// misses never become 200 HTML.
 import type { Context, NotFoundHandler } from "hono";
+import { IMMUTABLE } from "../core/resources.ts";
 import { ERROR_MESSAGES, errorBody, NO_STORE } from "./errors.ts";
 import type { AppDeps } from "./types.ts";
 
@@ -18,8 +19,6 @@ const DOWNLOAD_PREFIX = /^\/(?:ca|crl|dcrl)(?:\/|$)/;
 
 /** Content-hashed Vite output. */
 const HASHED_ASSETS = "/assets/";
-
-const IMMUTABLE = "public, max-age=31536000, immutable";
 
 /** Statuses of a stored asset (full, range, revalidated): the only ones cached as immutable. */
 const ASSET_STATUSES = new Set([200, 206, 304]);

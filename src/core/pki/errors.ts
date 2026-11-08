@@ -1,7 +1,7 @@
 // One error type for every way an uploaded certificate or CRL can be unusable, thrown by toDer
 // (PEM), the parsers and the summary builders. Callers map it without inspecting messages:
 // kind "certificate" → 422 invalid_certificate (import), "crl" → 422 invalid_crl (publish),
-// `reason` → `details.reason` (implementation §2.6). The message is for the log.
+// `reason` → `details.reason`. The message is for the log.
 
 /** What the bytes were supposed to be. */
 export type PkiKind = "certificate" | "crl";

@@ -8,7 +8,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useClock } from "@/composables/useClock";
 import { computeTargetStatus, needsAttention } from "@/utils/status";
 
-// The overview's counts (plan §8), counted here from the two lists: certificates, targets and
+// The overview's counts, counted here from the two lists: certificates, targets and
 // published targets by kind, the revocations in the published full CRLs, and "needs attention"
 // with the page's clock and the badges' rule (stale, expired or unknown), so the number always
 // matches the badges in the tables below.

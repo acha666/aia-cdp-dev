@@ -8,30 +8,7 @@
 import { Integer } from "asn1js";
 import type { BaseBlock } from "asn1js";
 import * as pkijs from "pkijs";
-import {
-  blockHex,
-  displayText,
-  dumpAsn1,
-  integerNumber,
-  readStrictTime,
-  stringOf,
-} from "../../core/pki/asn1.ts";
-import type { Asn1Line } from "../../core/pki/asn1.ts";
-import {
-  ACCESS_METHOD_NAMES,
-  CERTIFICATE_POLICY_NAMES,
-  CRL_REASON_CODES,
-  EKU_NAMES,
-  EXTENSION_NAMES,
-  HOLD_INSTRUCTION_NAMES,
-  KEY_USAGE_FLAGS,
-  NETSCAPE_CERT_TYPE_FLAGS,
-  OID_DICTIONARY,
-  POLICY_QUALIFIER_NAMES,
-  QC_STATEMENT_NAMES,
-  REASON_FLAGS,
-  TLS_FEATURE_NAMES,
-} from "../../core/pki/constants.ts";
+import { integerNumber, readStrictTime, stringOf } from "../../core/pki/asn1.ts";
 import {
   BIT_STRING,
   ENUMERATED,
@@ -67,6 +44,8 @@ import type en from "@/locales/en.json";
 import { formatDate } from "@/utils/dates";
 import { rowOf, rows } from "@/utils/values";
 import type { Row, Value } from "@/utils/values";
+import { blockHex, displayText, dumpAsn1 } from "./asn1-dump";
+import type { Asn1Line } from "./asn1-dump";
 import {
   formatAttributes,
   formatGeneralName,
@@ -74,6 +53,21 @@ import {
   readOtherNameParts,
   readRelativeName,
 } from "./names";
+import {
+  ACCESS_METHOD_NAMES,
+  CERTIFICATE_POLICY_NAMES,
+  CRL_REASON_CODES,
+  EKU_NAMES,
+  EXTENSION_NAMES,
+  HOLD_INSTRUCTION_NAMES,
+  KEY_USAGE_FLAGS,
+  NETSCAPE_CERT_TYPE_FLAGS,
+  POLICY_QUALIFIER_NAMES,
+  QC_STATEMENT_NAMES,
+  REASON_FLAGS,
+  TLS_FEATURE_NAMES,
+  oidName,
+} from "./oid-names";
 
 /** One label / value list (KeyValueList); a repeated element (point, policy, SCT) gets its own. */
 export type Section = Row[];
@@ -113,13 +107,9 @@ interface Context {
 
 const field = (key: FieldKey, i18n: I18nText) => i18n.t(`extension.fields.${key}`);
 
-/** An OID's name from `names`, else from the dictionary; undefined when it has none. */
-const nameOf = (oid: string, names?: Record<string, string>) =>
-  names?.[oid] ?? OID_DICTIONARY[oid]?.name;
-
 /** "name (oid)", or the OID alone when it has no known name. */
 function oidText(oid: string, names?: Record<string, string>): string {
-  const name = nameOf(oid, names);
+  const name = oidName(oid, names);
   return name ? `${name} (${oid})` : oid;
 }
 
@@ -184,7 +174,7 @@ function accessDescriptions(root: BaseBlock, ctx: Context): Section[] {
     sequenceOf(root).map((block) => {
       const access = new DerReader(block);
       const oid = readOid(access.read(OBJECT_IDENTIFIER));
-      const name = nameOf(oid, ACCESS_METHOD_NAMES);
+      const name = oidName(oid, ACCESS_METHOD_NAMES);
       const key = `extension.accessMethod.${name ?? ""}`;
       return {
         label: name !== undefined && i18n.te(key) ? i18n.t(key) : (name ?? oid),
@@ -256,7 +246,7 @@ function qualifierRow(info: pkijs.PolicyQualifierInfo, i18n: I18nText): Row {
     // Shown as hex, like a qualifier of another type.
   }
   const id = info.policyQualifierId;
-  return { label: nameOf(id, POLICY_QUALIFIER_NAMES) ?? id, value: { hex: blockHex(block) } };
+  return { label: oidName(id, POLICY_QUALIFIER_NAMES) ?? id, value: { hex: blockHex(block) } };
 }
 
 /** One section per policy: its identifier, then its qualifiers. */
@@ -476,7 +466,7 @@ const DECODERS: Record<string, Decoder | undefined> = {
     one(
       row("purposes", {
         tags: new pkijs.ExtKeyUsage({ schema: value }).keyPurposes.map(
-          (oid) => nameOf(oid, EKU_NAMES) ?? oid
+          (oid) => oidName(oid, EKU_NAMES) ?? oid
         ),
       })
     ),
@@ -646,13 +636,11 @@ export interface EntryColumns {
   /** The CRLReason name (keyCompromise, …); null without the extension. */
   reason: string | null;
   invalidityDate: string | null;
-  /** The certificate issuer of an indirect CRL entry, its names joined with "; ". */
-  issuer: string | null;
 }
 
-/** Reason, invalidity date and indirect issuer; an extension that does not decode shows none. */
+/** Reason and invalidity date; an extension that does not decode shows none. */
 export function entryColumns(extensions: readonly PlainExtension[], i18n: I18nText): EntryColumns {
-  const columns: EntryColumns = { reason: null, invalidityDate: null, issuer: null };
+  const columns: EntryColumns = { reason: null, invalidityDate: null };
   for (const { extnID, value } of extensions) {
     try {
       const block = readOne(value);
@@ -660,8 +648,6 @@ export function entryColumns(extensions: readonly PlainExtension[], i18n: I18nTe
         columns.reason = reasonName(readInteger(expectTag(block, ENUMERATED)));
       } else if (extnID === "2.5.29.24") {
         columns.invalidityDate = contextOf(i18n).time(expectTag(block, GENERALIZED_TIME));
-      } else if (extnID === "2.5.29.29") {
-        columns.issuer = formatGeneralNames(block, i18n).join("; ");
       }
     } catch {
       // The expanded row shows the error.

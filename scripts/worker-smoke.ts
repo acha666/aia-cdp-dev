@@ -20,7 +20,7 @@ import { encodeJson } from "../src/core/catalog.ts";
 import { cert, crlEntry, fixture, fixturePath } from "../tests/fixtures/pki.ts";
 import { configFor } from "../tests/helpers/catalog.ts";
 
-// Before wrangler is loaded: no telemetry, no banner or update check (implementation §2.4).
+// Before wrangler is loaded: no telemetry, no banner or update check.
 process.env.WRANGLER_SEND_METRICS = "false";
 process.env.WRANGLER_HIDE_BANNER = "true";
 const { createTestHarness } = await import("wrangler");

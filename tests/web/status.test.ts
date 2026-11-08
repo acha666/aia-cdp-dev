@@ -19,17 +19,8 @@ describe.each([
   ["computeCertificateStatus", computeCertificateStatus],
   ["computeCrlStatus", computeCrlStatus],
 ])("%s", (_, status) => {
-  it("is unknown for missing, malformed or inverted validity windows", () => {
-    for (const [from, until] of [
-      [null, null],
-      [start, null],
-      [null, end],
-      ["invalid", end],
-      [start, "invalid"],
-      [end, start],
-    ]) {
-      expect(status(from, until, now)).toBe("unknown");
-    }
+  it("is unknown for an inverted validity window", () => {
+    expect(status(end, start, now)).toBe("unknown");
   });
 
   it("is not yet valid before the start and expired after the end", () => {
@@ -40,7 +31,7 @@ describe.each([
 
 describe("computeCrlStatus", () => {
   it("is unknown without nextUpdate, even with Next CRL Publish, or with an empty window", () => {
-    expect(computeCrlStatus(start, undefined, now, "2026-01-02T00:00:00Z")).toBe("unknown");
+    expect(computeCrlStatus(start, null, now, "2026-01-02T00:00:00Z")).toBe("unknown");
     expect(computeCrlStatus(start, start, now)).toBe("unknown");
   });
 

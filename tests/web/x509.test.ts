@@ -121,7 +121,7 @@ describe("the fixtures", () => {
     const full03 = entries("crls/issuing-ca-1/full-03.der");
     const revoked = full03.get("2002")!;
     expect(rowsOf(byOid(revoked, "2.5.29.21"))).toEqual(["Reason: keyCompromise (1)"]);
-    expect(entryColumns(revoked, i18n)).toMatchObject({ reason: "keyCompromise", issuer: null });
+    expect(entryColumns(revoked, i18n)).toMatchObject({ reason: "keyCompromise" });
     expect(entryColumns(revoked, i18n).invalidityDate).toMatch(/^\w{3} \d{2}, \d{4} .* \(UTC\)$/);
     expect(entryColumns(full03.get("2003")!, i18n).reason).toBe("superseded");
     const hold = entries("crls/issuing-ca-2/full-01.der").get("3000")!;

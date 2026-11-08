@@ -1,22 +1,10 @@
 /**
- * Generic ASN.1 helpers that do not depend on PKIjs object models:
- * strict DER and RFC 5280 time validation, and a bounded, flat structure dump.
+ * Generic ASN.1 helpers that do not depend on PKIjs object models: strict DER and RFC 5280 time
+ * validation. The UI's structure dump (src/web/x509/asn1-dump.ts) builds on tagLabel and children.
  */
 
-import {
-  BaseBlock,
-  BitString,
-  Boolean as Asn1Boolean,
-  GeneralizedTime,
-  Integer,
-  Null,
-  ObjectIdentifier,
-  OctetString,
-  UTCTime,
-  fromBER,
-} from "asn1js";
-import { KNOWN_OID_NAMES } from "./constants.ts";
-import { toUpperHex } from "../digest.ts";
+import { BaseBlock, GeneralizedTime, UTCTime } from "asn1js";
+import type { Integer } from "asn1js";
 
 export type Asn1TimeType = "utcTime" | "generalizedTime";
 
@@ -24,13 +12,6 @@ export interface StrictTime {
   type: Asn1TimeType;
   raw: string;
   date: Date;
-}
-
-export interface Asn1Line {
-  depth: number;
-  tag: string;
-  length: number;
-  value?: string;
 }
 
 /**
@@ -111,8 +92,8 @@ export function readStrictTime(block: BaseBlock): StrictTime {
 /**
  * The RFC 5280 GeneralizedTime text of `date`: `YYYYMMDDHHMMSSZ` in UTC, fractional seconds
  * dropped (certificate and CRL times are whole seconds). Fixed width, so lexicographic order is
- * time order: CRL blob keys sort by thisUpdate (plan §5.1). Throws RangeError for an invalid date
- * or a year outside 0000–9999, which the format cannot hold.
+ * time order: CRL blob keys sort by thisUpdate. Throws RangeError for an invalid date or a year
+ * outside 0000–9999, which the format cannot hold.
  */
 export function formatGeneralizedTime(date: Date): string {
   // toISOString throws RangeError for an invalid date and writes ±YYYYYY outside 0000–9999.
@@ -139,7 +120,8 @@ export function integerNumber(block: Integer): number {
   return Number(value);
 }
 
-function children(block: BaseBlock): BaseBlock[] {
+/** The decoded children of a constructed block; [] for a primitive one. */
+export function children(block: BaseBlock): BaseBlock[] {
   const value: unknown = (block.valueBlock as { value?: unknown }).value;
   return Array.isArray(value)
     ? value.filter((item: unknown): item is BaseBlock => item instanceof BaseBlock)
@@ -177,7 +159,7 @@ function derProblem(block: BaseBlock): string | undefined {
     return "length not in its shortest form";
   }
   if (idBlock.tagClass === UNIVERSAL) {
-    // DER uses the primitive form for strings (§10.2); X.509 has no other constructed types.
+    // DER uses the primitive form for strings (X.690 §10.2); X.509 has no other constructed types.
     if (idBlock.isConstructed && idBlock.tagNumber !== SEQUENCE && idBlock.tagNumber !== SET) {
       return "constructed encoding of a primitive type";
     }
@@ -228,7 +210,8 @@ export function assertWellFormed(root: BaseBlock, der = true): void {
   }
 }
 
-function tagLabel(block: BaseBlock): string {
+/** The tag of `block` as error messages and the UI's dump show it: `SEQUENCE`, `[0]`, … */
+export function tagLabel(block: BaseBlock): string {
   const { tagClass, tagNumber, isConstructed } = block.idBlock;
   switch (tagClass) {
     case 1: {
@@ -243,104 +226,4 @@ function tagLabel(block: BaseBlock): string {
     default:
       return `PRIVATE ${tagNumber}`;
   }
-}
-
-const MAX_VALUE_CHARS = 256;
-
-function clip(text: string): string {
-  return text.length > MAX_VALUE_CHARS ? `${text.slice(0, MAX_VALUE_CHARS)}…` : text;
-}
-
-function describeOid(oid: string): string {
-  const name = KNOWN_OID_NAMES[oid];
-  return name ? `${oid} (${name})` : oid;
-}
-
-/** Human-readable scalar for a primitive block; undefined for constructed values. */
-function primitiveText(block: BaseBlock): string | undefined {
-  if (block.idBlock.isConstructed) {
-    return undefined;
-  }
-  if (block instanceof Asn1Boolean) {
-    return block.valueBlock.value ? "TRUE" : "FALSE";
-  }
-  // ENUMERATED too (an asn1js Integer). Not valueDec: it is 0 from four contents octets on.
-  if (block instanceof Integer) {
-    return block.toBigInt().toString(10);
-  }
-  if (block instanceof ObjectIdentifier) {
-    return describeOid(block.valueBlock.toString());
-  }
-  if (block instanceof Null) {
-    return undefined;
-  }
-  if (block instanceof UTCTime || block instanceof GeneralizedTime) {
-    try {
-      return readStrictTime(block).date.toISOString();
-    } catch {
-      return clip(asciiOf(block.valueBlock.valueHexView));
-    }
-  }
-  if (block instanceof BitString) {
-    const unused = block.valueBlock.unusedBits;
-    const hex = toUpperHex(block.valueBlock.valueHexView);
-    return clip(unused > 0 ? `${hex} (${unused} unused bits)` : hex);
-  }
-  if (block instanceof OctetString) {
-    return clip(toUpperHex(block.valueBlock.valueHexView));
-  }
-  const text = stringOf(block);
-  if (text !== undefined) {
-    return clip(text);
-  }
-  const view = (block.valueBlock as { valueHexView?: Uint8Array }).valueHexView;
-  return clip(toUpperHex(view ?? block.toBER(false)));
-}
-
-const DUMP_LIMITS = { maxLines: 200, maxDepth: 12 };
-
-/**
- * Flat `openssl asn1parse`-style listing of a DER value. Returns undefined when
- * the bytes are not decodable, so callers fall back to raw hex.
- */
-export function dumpAsn1(bytes: Uint8Array | ArrayBuffer): Asn1Line[] | undefined {
-  let parsed: ReturnType<typeof fromBER>;
-  try {
-    parsed = fromBER(bytes);
-  } catch {
-    // asn1js throws instead of reporting some malformed values (a GeneralizedTime string).
-    return undefined;
-  }
-  if (parsed.offset === -1 || parsed.result.error !== "") {
-    return undefined;
-  }
-  const lines: Asn1Line[] = [];
-  const visit = (block: BaseBlock, depth: number): void => {
-    if (lines.length >= DUMP_LIMITS.maxLines) {
-      return;
-    }
-    const value = primitiveText(block);
-    const line: Asn1Line = { depth, tag: tagLabel(block), length: block.valueBlock.blockLength };
-    if (value !== undefined) {
-      line.value = value;
-    }
-    lines.push(line);
-    if (depth < DUMP_LIMITS.maxDepth) {
-      for (const child of children(block)) {
-        visit(child, depth + 1);
-      }
-    }
-  };
-  visit(parsed.result, 0);
-  return lines;
-}
-
-/** Uppercase hex of the whole encoding of `block` (as asn1js re-encodes it). */
-export function blockHex(block: BaseBlock): string {
-  return toUpperHex(block.toBER(false));
-}
-
-/** Best-effort text for an arbitrary ASN.1 value (used for attribute values and qualifiers). */
-export function displayText(block: BaseBlock): string {
-  return primitiveText(block) ?? blockHex(block);
 }

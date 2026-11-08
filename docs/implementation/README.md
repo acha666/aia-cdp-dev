@@ -127,7 +127,7 @@ D8：批次 1 = 本目录（当时为单文件 `docs/implementation.md`）+ plan
 - 只用可擦除语法（`erasableSyntaxOnly`）：不写 enum、namespace、构造参数属性，私有状态用 `#field`；纯类型导入写 `import type`
   （`verbatimModuleSyntax`；ESLint `consistent-type-imports` 分开写 + `no-import-type-side-effects`）。
 - `src/web` 走 Bundler 解析，可用 `@/` 别名、导入不带后缀（shadcn-vue 生成代码如此）；web 对 `src/core`、`src/http`、`src/storage`、
-  `src/runtime` 只许 `import type`（`AppType`、core 的 X.509 类型），Hono 只许 `hono/client`（`eslint.config.ts` 里唯一的导入规则）。
+  `src/runtime` 只许 `import type`（`AppType`），例外是详情页解码 DER 用的 `src/core/pki` 与 `src/core/digest.ts`；Hono 只许 `hono/client`（`eslint.config.ts` 里唯一的导入规则）。
 - core 与 http 只用 Web 标准全局：裸 `crypto`、`performance`、`TextEncoder`，类型写 `typeof crypto`；交给 WebCrypto 的字节为
   `Uint8Array<ArrayBuffer>`；不出现 `Buffer`、`process`、`node:*`。core 不导入 http、storage、runtime、hono。这两条是约定，
   只由 worker 程序的类型检查部分兜住（总则 §2.2）。

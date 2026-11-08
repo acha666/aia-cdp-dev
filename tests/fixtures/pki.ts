@@ -5,8 +5,8 @@ import manifest from "./pki/manifest.json" with { type: "json" };
 
 // The committed tree that tests/fixtures/generate-test-data.sh writes (pnpm run fixtures). Digests,
 // key ids, sizes and signatures change with every generation: read them from the files or from
-// `manifest` (its fields are the contract in implementation appendix D), never write them as
-// literals (implementation §2.5).
+// `manifest` (its fields are the contract in docs/implementation/appendix-d-fixture-matrix.md),
+// never write them as literals.
 
 export { manifest };
 

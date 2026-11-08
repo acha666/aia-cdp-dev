@@ -1,4 +1,4 @@
-// ObjectStore port (plan §5.4), implemented by src/storage/{memory,fs,r2}.ts.
+// ObjectStore port, implemented by src/storage/{memory,fs,r2}.ts.
 // ETags are opaque and only ever passed back to the same adapter; they are never used as HTTP
 // ETags (those always come from the content SHA-256), and HTTP If-Match values never reach a store.
 
@@ -54,7 +54,7 @@ function isStoreKey(key: string): boolean {
  * Every adapter calls this before get / put / delete (it is also the fs adapter's path traversal
  * guard). A key is one or more `/`-separated segments matching
  * `[A-Za-z0-9_-][A-Za-z0-9._-]*`: no empty key or segment, no `.` / `..` or other leading dot, no
- * absolute path, backslash or NUL. All keys of plan §5.1 qualify.
+ * absolute path, backslash or NUL. Every key the service writes qualifies.
  */
 export function assertStoreKey(key: string): void {
   if (!isStoreKey(key)) {

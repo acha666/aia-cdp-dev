@@ -13,7 +13,6 @@ import { useDropZone, useFocus } from "@vueuse/core";
 import { computed, nextTick, ref, shallowRef, useId, useTemplateRef } from "vue";
 import type { ComponentPublicInstance } from "vue";
 import { useI18n } from "vue-i18n";
-import { toast } from "vue-sonner";
 import { ApiError } from "@/client/errors";
 import { queries, useUploadCrl } from "@/client/queries";
 import type { PublishedCrl } from "@/client/types";
@@ -32,8 +31,8 @@ import { errorMessage, errorReason } from "@/utils/errors";
 // input cleared only if it did not change meanwhile, a drop takes its first file, the file input is
 // reset after a choice, the PEM hint only for text that is there. Files go as they are, pasted PEM
 // as a file named crl.pem, both as the request body; the server tells PEM from DER by the bytes.
-// created, updated and unchanged are all successes; a failure shows errors.<code> as a toast and
-// inline. The optional token (AIA_UPLOAD_TOKEN) stays in memory and opens itself when the server
+// created, updated and unchanged are all successes; a failure shows errors.<code> inline. The
+// optional token (AIA_UPLOAD_TOKEN) stays in memory and opens itself when the server
 // asks for it. Keyboard focus: the submit button is only aria-disabled while an upload runs (a
 // disabled button drops the focus to <body>), and the result alert takes the focus from it
 // afterwards (a cleared input disables the button).
@@ -112,15 +111,12 @@ async function submit() {
       t(`upload.kindTarget.${published.kind}`);
     const message = t(`upload.outcome.${published.outcome}`, { target });
     success.value = { message, published };
-    toast.success(message);
     if (input.value === submitted) {
       clear();
     }
     void focusResult(successAlert);
   } catch (error) {
-    const message = errorMessage(error, i18n);
-    failure.value = { message, reason: errorReason(error, i18n) };
-    toast.error(message);
+    failure.value = { message: errorMessage(error, i18n), reason: errorReason(error, i18n) };
     if (error instanceof ApiError && error.code === "unauthorized") {
       openToken();
     } else {

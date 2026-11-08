@@ -1,15 +1,7 @@
-import * as asn1 from "asn1js";
-import * as pkijs from "pkijs";
 import { describe, expect, it } from "vitest";
-import {
-  getAuthorityKeyIdHex,
-  getCRLInteger,
-  parseCertificate,
-  parseCRL,
-  parseCrlHeader,
-} from "../../../src/core/pki/parsers.ts";
+import { parseCertificate, parseCRL, parseCrlHeader } from "../../../src/core/pki/parsers.ts";
 import { fixture } from "../../fixtures/pki.ts";
-import { berVariants, extension, pkiError } from "../../helpers/pki.ts";
+import { berVariants, pkiError } from "../../helpers/pki.ts";
 
 const ROOT = "certs/root-ca.der";
 
@@ -81,60 +73,4 @@ describe("parseCertificate / parseCRL", () => {
       expect(() => parse(der)).toThrow(pkiError("crl", "structure"));
     }
   });
-});
-
-describe("key identifiers", () => {
-  it("reads the AKI keyIdentifier as lowercase hex, undefined without one, and throws on a malformed one", () => {
-    const issuer = [new pkijs.GeneralName({ type: 6, value: "https://ca.example/issuer" })];
-    const serial = new asn1.Integer({ value: 17 });
-    const aki = (keyIdentifier?: asn1.OctetString) =>
-      extension(
-        "2.5.29.35",
-        new pkijs.AuthorityKeyIdentifier({
-          ...(keyIdentifier === undefined ? {} : { keyIdentifier }),
-          authorityCertIssuer: issuer,
-          authorityCertSerialNumber: serial,
-        }).toSchema()
-      );
-    const keyId = new asn1.OctetString({ valueHex: Uint8Array.of(0xab, 0xcd).buffer });
-    expect(getAuthorityKeyIdHex([aki(keyId)])).toBe("abcd");
-    expect(getAuthorityKeyIdHex([aki()])).toBeUndefined();
-    expect(getAuthorityKeyIdHex(undefined)).toBeUndefined();
-    expect(() => getAuthorityKeyIdHex([extension("2.5.29.35", new asn1.Null())])).toThrow();
-    // The three fields in their order and nothing else (RFC 5280 §4.2.1.1).
-    const tagged = (tagNumber: number, ...bytes: number[]) =>
-      new asn1.Primitive({
-        idBlock: { tagClass: 3, tagNumber },
-        valueHex: Uint8Array.from(bytes).buffer,
-      });
-    for (const value of [
-      [tagged(2, 17), tagged(0, 0xab, 0xcd)],
-      [tagged(0, 0xab, 0xcd), new asn1.Null()],
-    ]) {
-      expect(() =>
-        getAuthorityKeyIdHex([extension("2.5.29.35", new asn1.Sequence({ value }))])
-      ).toThrow();
-    }
-  });
-});
-
-it("reads CRL numbers exactly and rejects negative, oversized or wrong-tag upload values", () => {
-  const crlWith = (ext: pkijs.Extension) =>
-    new pkijs.CertificateRevocationList({
-      crlExtensions: new pkijs.Extensions({ extensions: [ext] }),
-    });
-  for (const oid of ["2.5.29.20", "2.5.29.27"]) {
-    const large = 2n ** 100n + 123n;
-    expect(getCRLInteger(crlWith(extension(oid, asn1.Integer.fromBigInt(large))), oid)).toBe(large);
-    for (const value of [
-      new asn1.Integer({ value: -1 }),
-      asn1.Integer.fromBigInt(2n ** 200n),
-      new asn1.Enumerated({ value: 1 }),
-    ]) {
-      expect(
-        () => getCRLInteger(crlWith(extension(oid, value)), oid),
-        `${oid} ${value.constructor.name}`
-      ).toThrow();
-    }
-  }
 });

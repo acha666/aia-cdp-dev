@@ -1,21 +1,14 @@
 import { fromBER } from "asn1js";
 import type { BaseBlock } from "asn1js";
 import * as pkijs from "pkijs";
-import { Asn1TimeError, assertWellFormed, readStrictTime } from "./asn1.ts";
+import { Asn1TimeError, assertWellFormed } from "./asn1.ts";
 import { BIT_STRING, DerReader, INTEGER, SEQUENCE } from "./der.ts";
 import { messageOf, PkiParseError } from "./errors.ts";
 import type { PkiKind } from "./errors.ts";
-import {
-  plainExtension,
-  readAuthorityKeyId,
-  readCRLInteger,
-  readExtensionSchema,
-  readSubjectKeyId,
-} from "./extensions.ts";
+import { plainExtension } from "./extensions.ts";
 import type { PlainExtension } from "./extensions.ts";
 import { encodeTlv, readTlv } from "./pem.ts";
 import type { Tlv } from "./pem.ts";
-import { toHex } from "../digest.ts";
 
 const LABELS: Record<PkiKind, string> = { certificate: "certificate", crl: "CRL" };
 
@@ -260,57 +253,4 @@ export function parseCRL(der: Uint8Array): WholeCrl {
     ? fieldsOf(der, revoked, Infinity).map((tlv) => readEntry(der.subarray(tlv.start, tlv.end)))
     : [];
   return Object.assign(crl, { entries });
-}
-
-/**
- * The Subject Key Identifier, lowercase hex; undefined without the extension. Throws when its value
- * is not exactly one primitive OCTET STRING.
- */
-export function getSKIHex(cert: pkijs.Certificate): string | undefined {
-  const extension = cert.extensions?.find((ext) => ext.extnID === "2.5.29.14");
-  return extension && toHex(readSubjectKeyId(readExtensionSchema(extension)));
-}
-
-/**
- * keyIdentifier of the Authority Key Identifier in `extensions` (`cert.extensions` or
- * `crl.crlExtensions?.extensions`), lowercase hex; undefined without the extension or without a
- * keyIdentifier. Throws when the extension is present but malformed, trailing bytes included.
- */
-export function getAuthorityKeyIdHex(
-  extensions: pkijs.Extension[] | undefined
-): string | undefined {
-  const extension = extensions?.find((ext) => ext.extnID === "2.5.29.35");
-  const key = extension && readAuthorityKeyId(readExtensionSchema(extension)).keyIdentifier;
-  return key && toHex(key);
-}
-
-/** The INTEGER of the CRL extension `oid` (CRL Number, Delta CRL Indicator); undefined without it. */
-export function getCRLInteger(
-  crl: pkijs.CertificateRevocationList,
-  oid: string
-): bigint | undefined {
-  const extension = crl.crlExtensions?.extensions.find((ext) => ext.extnID === oid);
-  return extension && readCRLInteger(readExtensionSchema(extension));
-}
-
-/** AD CS Next CRL Publish: when the CA will publish its next CRL (before nextUpdate). */
-export const NEXT_CRL_PUBLISH_OID = "1.3.6.1.4.1.311.21.4";
-
-/**
- * The AD CS Next CRL Publish time: exactly one UTCTime / GeneralizedTime in the RFC 5280 form (AD
- * CS writes a UTCTime). Undefined without the extension, and also for a value that cannot be read
- * as such: the time only informs the CRL status, so it does not reject the CRL.
- */
-export function getNextCRLPublish(crl: pkijs.CertificateRevocationList): Date | undefined {
-  const extension = crl.crlExtensions?.extensions.find(
-    (ext) => ext.extnID === NEXT_CRL_PUBLISH_OID
-  );
-  if (!extension) {
-    return undefined;
-  }
-  try {
-    return readStrictTime(readExtensionSchema(extension)).date;
-  } catch {
-    return undefined;
-  }
 }

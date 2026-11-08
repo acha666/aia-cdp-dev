@@ -1,18 +1,13 @@
-// Configuration rules and apply (plan §5.2).
-//
-// The rules V1–V9 come in three layers:
+// Configuration rules and apply. The rules V1–V9 come in three layers:
 // - static (V1–V3, V4 / V6 static parts): the document alone. validateConfig without a context
-//   runs only this layer: the CLI's `config validate`, offline.
-// - state (V4 / V6 catalog parts, V5): the document against catalog.json, at apply time only.
-// - migration (V7, V9): the document against the current config.json, at apply time only.
-//
-// The numbering skips V8: a target is retired by removing it from config.json, whatever its catalog
-// entry holds (see checkConfigMigration).
-//
-// There is no rebind ledger: V7 compares with the current config only, so a `/ca/` path removed by
-// one apply and re-added for another certificate by a later one is not detected. Certificate
-// downloads are cached `immutable` for a year: a new CA certificate needs a new path, which is the
-// operator's responsibility.
+//   runs only this layer, as the CLI's offline `config validate` does.
+// - state (V4 / V6 catalog parts, V5): against catalog.json, at apply time only.
+// - migration (V7, V9): against the current config.json, at apply time only.
+// There is no V8: removing a target from config.json retires it (see checkConfigMigration).
+// There is no rebind ledger either: V7 compares with the current config only, so a `/ca/` path
+// removed by one apply and re-added for another certificate by a later one is not detected.
+// Certificate downloads are cached immutable for a year, so a new CA certificate needs a new path;
+// that is the operator's responsibility.
 import type { z } from "zod";
 import {
   certificateReferences,
@@ -146,10 +141,9 @@ export function schemaIssues(error: z.ZodError): ConfigIssue[] {
 // State layer ------------------------------------------------------------------------------------
 
 /**
- * V4 (every certificateReferences entry is in the catalog), V5 (a target's issuer has a Subject
- * Key Identifier: CRLs are matched to issuers by AKI = SKI) and V6's catalog part: two different
- * certificates with the same SKI, such as a renewal on the same key, must not each have a target of
- * the same kind, or a CRL could not be attributed to one of them.
+ * V4 (referenced certificates are imported), V5 (a target's issuer has an SKI: CRLs are matched to
+ * issuers by AKI = SKI) and V6's catalog part (two certificates with one SKI, e.g. a renewal on the
+ * same key, must not each have a target of the same kind, or a CRL could not be attributed).
  */
 function checkConfigState(config: Config, catalog: Catalog): ConfigIssue[] {
   const issues: ConfigIssue[] = certificateReferences(config)
@@ -196,17 +190,15 @@ function checkConfigState(config: Config, catalog: Catalog): ConfigIssue[] {
 // Migration layer --------------------------------------------------------------------------------
 
 /**
- * V7 (a `/ca/` path in both the current and the new config keeps its certificate) and V9 (a target
- * id in both keeps its issuer and kind: a target's current CRL and its whole history are verified
- * by one certificate) compare with `current`, and are skipped without one.
+ * V7 (a `/ca/` path in both configs keeps its certificate) and V9 (a target id in both keeps its
+ * issuer and kind: one certificate verifies its current CRL and history); [] without `current`.
  *
- * A target may be removed whatever the catalog holds for it: that retires it. Downloads, lists and
- * uploads only look at config.json's targets, so nothing serves it any more and its CRLs get
- * target_not_configured; the catalog keeps its last current as history and as the reference that
- * protects its verifier from deletion. Adding the same id back serves that current again, so a
- * target that publishes again gets a new id (`aia new-target-id`). Like a rebound `/ca/` path, an
- * id removed by one apply and added back with another issuer or kind by a later one is not
- * detected: that is the operator's responsibility.
+ * Removing a target retires it whatever the catalog holds for it: downloads, lists and uploads look
+ * only at config.json's targets, so nothing serves it and its CRLs get target_not_configured; the
+ * catalog keeps its last current as history and to protect its verifier from deletion. Adding the
+ * id back serves that current again, so a target that publishes again gets a new id
+ * (`aia new-target-id`). Like a rebound `/ca/` path, an id re-added with another issuer or kind by
+ * a later apply is not detected.
  */
 function checkConfigMigration(config: Config, current: Config | undefined): ConfigIssue[] {
   if (current === undefined) {
@@ -255,11 +247,8 @@ export interface ValidationContext {
 }
 
 /**
- * Every violation at once, ordered by rule: V1 (ConfigSchema, strict) and, on a schema-valid
- * document, V2, V3 and the static parts of V4 (path targets exist) and V6 (one target per issuer
- * and kind); with a `context`, also the state rules (V4 / V6 catalog parts, V5) and the migration
- * rules (V7, V9). Without one it needs no store. When V1 fails nothing else runs: the other rules
- * need a well-formed document.
+ * Every violation at once, ordered by rule. When V1 (ConfigSchema) fails nothing else runs: the
+ * other rules need a well-formed document. The state and migration rules run only with `context`.
  */
 export function validateConfig(value: unknown, context?: ValidationContext): ConfigCheck {
   const parsed = ConfigSchema.safeParse(value);
@@ -282,9 +271,8 @@ export function validateConfig(value: unknown, context?: ValidationContext): Con
 // Apply ------------------------------------------------------------------------------------------
 
 /**
- * The HTTP precondition of `PUT /api/v1/admin/config`, exactly one (the route answers 428
- * without): `ifMatch` = the digest the client got as ETag (the SHA-256 hex of the stored bytes,
- * unquoted by the route), or `ifNoneMatch: "*"` for the first configuration.
+ * `ifMatch` is the unquoted config ETag (the SHA-256 hex of the stored config.json bytes);
+ * `ifNoneMatch: "*"` is for the first configuration.
  */
 export type ConfigPrecondition =
   { ifMatch: string; ifNoneMatch?: never } | { ifNoneMatch: "*"; ifMatch?: never };
@@ -295,8 +283,7 @@ export type ApplyConfigResult =
   | { error: "precondition_failed" }
   | { error: "config_invalid"; details: { issues: ConfigIssue[] } };
 
-// Lenient: a current config that is not JSON or not valid is still replaceable, it only cannot
-// take part in V7 / V9.
+// Lenient: a current config that is not JSON or not valid stays replaceable and only skips V7 / V9.
 function parseCurrent(bytes: Uint8Array): Config | undefined {
   try {
     return ConfigSchema.parse(decodeJson(bytes));
@@ -306,15 +293,11 @@ function parseCurrent(bytes: Uint8Array): Config | undefined {
 }
 
 /**
- * Replaces config.json (plan §5.5). Reads config.json leniently (bytes and store ETag) and
- * catalog.json strictly (an invalid catalog throws), checks the precondition against the SHA-256
- * of the stored bytes (so a config that only an out-of-band write could have broken can still be
- * replaced, after a GET returned it as is), runs V1–V9 with the state rules on the catalog read
- * here, then writes the canonical bytes conditionally on the store ETag that was read
- * (`ifNoneMatch: "*"` for the first config). A lost write is precondition_failed, not retried.
- *
- * Only config.json is written. The catalog is not re-read before the write: a publish or a
- * certificate deletion in between is the accepted cross-object window (one operator at a time).
+ * Replaces config.json; throws when catalog.json is invalid. The precondition is checked against
+ * the SHA-256 of the stored bytes, so a config broken by an out-of-band write stays replaceable
+ * after a GET returned it as is. A lost conditional write is precondition_failed, not retried.
+ * The catalog is not re-read before the write: a publish or a certificate deletion in between is
+ * the accepted cross-object window (one operator at a time).
  */
 export async function applyConfig(
   deps: { store: ObjectStore },

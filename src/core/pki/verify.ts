@@ -1,9 +1,8 @@
-// Signature check of an uploaded CRL (plan §6). Not the verify method of PKIjs's
-// CertificateRevocationList: that compares the CRL's issuer name with the certificate's subject and
-// silently fails a critical extension outside PKIjs's own list. Here the key is whichever
-// certificate the target names, the CRL extension policy (crl-policy.ts) has already run, and PKIjs
-// only does the cryptography, on the engine it installs from globalThis.crypto by itself (the
-// engine is never replaced).
+// Signature check of an uploaded CRL. Not the verify method of PKIjs's CertificateRevocationList:
+// that compares the CRL's issuer name with the certificate's subject and silently fails a critical
+// extension outside PKIjs's own list. Here the key is whichever certificate the target names, the
+// CRL extension policy (crl-policy.ts) has already run, and PKIjs only does the cryptography, on
+// the engine it installs from globalThis.crypto by itself (the engine is never replaced).
 import { Any, Null, ObjectIdentifier, Sequence } from "asn1js";
 import type { BaseBlock } from "asn1js";
 import * as pkijs from "pkijs";
