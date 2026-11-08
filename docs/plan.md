@@ -127,7 +127,7 @@ aia-cdp/
       commands.ts      各子命令（import / publish 逐项报告加汇总行、config、history 等）
     web/               Vue UI（Vite root；按 §8 重建）
       client/          hc<AppType> 客户端（不得叫 api：dev server 会把 src/web 下的目录当 URL 服务）
-      components/ui/   shadcn-vue 生成的组件（入库）
+      components/ui/   shadcn-vue 生成的组件（入库，删去 app 没用到的 variant/size/状态）
       x509/            详情页的显示映射：扩展、名称、算法字段、ASN.1 dump 与 OID 名称表
       lib/utils.ts     shadcn-vue 生成（cn）
   tests/
