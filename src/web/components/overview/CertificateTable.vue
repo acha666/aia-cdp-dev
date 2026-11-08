@@ -12,12 +12,6 @@ import { useClock } from "@/composables/useClock";
 import { formatDate, relativeTime } from "@/utils/dates";
 import { computeCertificateStatus } from "@/utils/status";
 
-// The imported certificates: name (config label, else subject CN), issuer, validity with
-// the time left while valid, status and downloads, sorted by name. The list keeps showing while it
-// refetches; skeleton rows appear only before the first answer. On a phone (below sm) only the name
-// and the status show: with every column the table scrolls sideways inside its card, which hides
-// the status; issuer, validity and downloads are on the detail page. From sm up, where the table
-// may still scroll, the name keeps a minimum width instead of one word per line.
 const { data, error, refetch } = useQuery(queries.certificates());
 
 const SECONDARY = "hidden sm:table-cell";
@@ -41,12 +35,10 @@ const rows = computed(() => {
       return {
         id: certificate.id,
         name: certificate.label ?? subjectCN ?? t("details.certificate.unknownName"),
-        // The CN under a label, when they differ.
         subjectCN: certificate.label !== null && subjectCN !== certificate.label ? subjectCN : null,
         issuer: issuerCN ?? t("common.unknown"),
         from: formatDate(notBefore, i18n, { time: false, zone: false }),
         until: formatDate(notAfter, i18n, { time: false }),
-        // Only while the certificate is valid (expiring is the last tenth of that).
         remaining:
           state === "valid" || state === "expiring" ? relativeTime(notAfter, nowMs, i18n) : null,
         state,

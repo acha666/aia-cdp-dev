@@ -6,7 +6,6 @@ import { Alert, AlertAction, AlertDescription, AlertTitle } from "@/components/u
 import { Button } from "@/components/ui/button";
 import { errorMessage } from "@/utils/errors";
 
-// A read that failed without data to show: what went wrong (errors.<code>) and a retry.
 const props = defineProps<{ error: unknown; title: string }>();
 defineEmits<{ retry: [] }>();
 

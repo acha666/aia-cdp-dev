@@ -1,6 +1,4 @@
 {
-  // Node program (type check only): the Node graph of src (with the CLI), scripts, node-side tests
-  // and the tool configs. Only @types/node is visible, so R2Bucket / Env / ExportedHandler fail here.
   "extends": "./tsconfig.base.json",
   "compilerOptions": {
     "types": ["node"],

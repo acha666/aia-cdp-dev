@@ -1,5 +1,3 @@
-// The CRL upload card against a stubbed fetch: what it sends, the three outcomes, the error texts,
-// the optional token, and the input rules.
 import { VueQueryPlugin } from "@tanstack/vue-query";
 import { flushPromises, mount } from "@vue/test-utils";
 import type { VueWrapper } from "@vue/test-utils";
@@ -70,11 +68,9 @@ describe("CrlUploadCard", () => {
         ],
       },
     });
-    // useDropZone adds its listeners in a post-flush watcher, after the mount.
     await flushPromises();
     card.get('[data-testid="drop-zone"]').element.dispatchEvent(drop);
     await flushPromises();
-    // Otherwise the browser opens the dropped file instead of the page (and its token).
     expect(drop.defaultPrevented).toBe(true);
     expect(card.get('[data-testid="upload-helper"]').text()).toBe("full.crl");
 
@@ -117,7 +113,6 @@ describe("CrlUploadCard", () => {
       "/crl/ca01.crl.pem",
     ]);
     expect(card.find('[data-testid="upload-error"]').exists()).toBe(false);
-    // The input was not changed meanwhile: it is cleared.
     expect((card.get("textarea").element as HTMLTextAreaElement).value).toBe("");
   });
 
@@ -160,7 +155,6 @@ describe("CrlUploadCard", () => {
     for (const text of ["Upload failed", message!, ...more]) {
       expect(alert.text()).toContain(text);
     }
-    // A failed input stays for another try.
     expect((card.get("textarea").element as HTMLTextAreaElement).value).toBe(PEM);
   });
 
@@ -174,7 +168,6 @@ describe("CrlUploadCard", () => {
 
     await paste(card, PEM);
     await submit(card);
-    // No token: no Authorization header at all (an empty one is bearerAuth's 400).
     expect(new Headers(posts()[0]!.headers).has("Authorization")).toBe(false);
     const field = card.get('[data-testid="token-input"]');
     expect(document.activeElement).toBe(field.element);
@@ -201,14 +194,12 @@ describe("CrlUploadCard", () => {
     await button.trigger("click");
     await flushPromises();
     expect(posts()).toHaveLength(1);
-    // aria-disabled, not disabled: a disabled button drops the keyboard focus to <body>.
     expect(button.attributes("aria-disabled")).toBe("true");
     expect(document.activeElement).toBe(button.element);
     expect(button.text()).toBe("Uploading…");
 
     pending.resolve(ok("created")());
     await flushPromises();
-    // Done, and disabled because the input was cleared: the focus moves to the result.
     expect(button.text()).toBe("Upload CRL");
     expect(posts()).toHaveLength(1);
     expect(document.activeElement).toBe(card.get('[data-testid="upload-success"]').element);

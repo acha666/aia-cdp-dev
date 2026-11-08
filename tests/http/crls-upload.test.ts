@@ -1,6 +1,3 @@
-// POST /api/v1/crls: raw bodies, the optional upload token, the media type and size limits, and
-// how publish outcomes map to status, code, message and details (which CRL gets which outcome is
-// tests/core/publish.test.ts).
 import { describe, expect, it } from "vitest";
 import { CRL_MEDIA_TYPES } from "../../src/http/schemas.ts";
 import { cert, crlEntry, fixture, fixtureText } from "../fixtures/pki.ts";
@@ -19,13 +16,11 @@ const FULL_01 = "crls/issuing-ca-1/full-01.der";
 const FULL_02 = "crls/issuing-ca-1/full-02.der";
 const DELTA_01 = "crls/issuing-ca-1/delta-01.der";
 
-// What a RequestInit takes (HeadersInit and BodyInit are not globals in the Node program).
 type HeaderFields = NonNullable<RequestInit["headers"]>;
 type Body = RequestInit["body"];
 
 type App = ReadService["app"];
 
-/** full-02 is issuing-ca-1's current full CRL. Every upload to it is refused, so nothing changes it. */
 const served = await readService({ publish: [FULL_02] });
 
 function upload(app: App, body: Body, contentType?: string, headers: HeaderFields = {}) {
@@ -40,7 +35,6 @@ function uploadFile(app: App, file: string, headers: HeaderFields = {}) {
   return upload(app, fixture(file), "application/pkix-crl", headers);
 }
 
-/** The 201 created body for the CRL fixture `file` (a .der) published to its target in `setup`. */
 async function publishedBody(file: string, setup: PublishSetup) {
   const entry = crlEntry(file);
   const target = setup.target(entry.issuer, entry.kind);
@@ -144,7 +138,6 @@ describe("POST /api/v1/crls: token and size", () => {
     expect(await authorized.json()).toEqual(await publishedBody(ROOT_FULL_01, setup));
   });
 
-  // An anonymous client never gets its body read, nor a 413 that tells it the limit.
   it("checks the token, then the media type, then the size", async () => {
     const settings = { uploadToken: TOKEN, maxUploadBytes: 16 };
     const { app } = await readService({ overrides: { settings } });
@@ -177,7 +170,6 @@ describe("POST /api/v1/crls: token and size", () => {
 });
 
 describe("POST /api/v1/crls: outcomes", () => {
-  /** details of a 409 against full-02. */
   const CURRENT = { current: versionOf(FULL_02) };
 
   it.each<[number, string, string, string, unknown]>([

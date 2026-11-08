@@ -6,10 +6,6 @@ import CopyButton from "@/components/CopyButton.vue";
 import QueryError from "@/components/QueryError.vue";
 import { Skeleton } from "@/components/ui/skeleton";
 
-// The PEM text served at one of the resource's download paths, with a copy button (the raw tab of
-// a certificate). The path comes from the API's `downloads`; the download routes are not part of
-// the typed client, so this is a plain GET through apiFetch (no response → ApiError `network`),
-// revalidated with the route's ETag.
 const props = defineProps<{ path: string }>();
 
 const { t } = useI18n();

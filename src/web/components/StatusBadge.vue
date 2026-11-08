@@ -3,10 +3,6 @@ import { useI18n } from "vue-i18n";
 import { Badge } from "@/components/ui/badge";
 import type { CertificateStatusState, CrlStatusState } from "@/utils/status";
 
-// A certificate or CRL status on the shadcn Badge: one colour per state from theme tokens
-// (success / warning / destructive / muted, set in main.css), so both themes follow, each at least
-// 4.5:1 against its background. Unpublished has a dashed outline like the CRL page's "not
-// published" box (muted text on a muted fill would be 4.35:1).
 type State = CertificateStatusState | CrlStatusState;
 
 const SUCCESS = "border-transparent bg-success/10 text-success dark:bg-success/20";

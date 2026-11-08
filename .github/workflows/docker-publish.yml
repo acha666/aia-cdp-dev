@@ -1,5 +1,3 @@
-# Builds the Dockerfile and pushes it to ghcr.io/<owner>/<repo>: `main` on every push to main;
-# `X.Y.Z`, `X.Y` and `latest` on a `vX.Y.Z` tag. CI's docker job smoke-tests the same Dockerfile.
 name: Docker publish
 
 on:

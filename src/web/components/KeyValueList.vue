@@ -2,8 +2,6 @@
 import ValueView from "@/components/ValueView.vue";
 import type { Row } from "@/utils/values";
 
-// Label / value rows as a description list, shared by the detail views and the extension bodies:
-// a 12rem label column beside the value (stacked on phones). Values are drawn by ValueView.
 defineProps<{ items: readonly Row[] }>();
 </script>
 

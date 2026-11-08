@@ -6,7 +6,6 @@ import CrlTargetTable from "@/components/overview/CrlTargetTable.vue";
 import StatsBar from "@/components/overview/StatsBar.vue";
 import { usePageTitle } from "@/composables/usePageTitle";
 
-// The landing page: counts, the certificates, the CRL targets and the CRL upload.
 const { t } = useI18n();
 usePageTitle(() => t("pages.overview.title"));
 </script>

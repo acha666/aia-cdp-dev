@@ -1,5 +1,3 @@
-// A target's history (src/core/history.ts): published versions from the blob and marker prefixes,
-// newest first, also once the target is removed from config.json; orphans are not history.
 import { describe, expect, it } from "vitest";
 import { emptyConfig } from "../../src/core/catalog.ts";
 import { getHistoryBlob, listHistory } from "../../src/core/history.ts";
@@ -9,7 +7,6 @@ import { applyOver, publishFile, setupPublish } from "../helpers/publish.ts";
 
 const FILES = ["full-01", "full-02", "full-03"].map((name) => `crls/issuing-ca-1/${name}.der`);
 
-/** issuing-ca-1's full target with full-01..03 published in order. */
 async function published() {
   const store = new MemoryStore();
   const setup = await setupPublish(store, { targets: [{ issuer: "issuing-ca-1", kind: "full" }] });
@@ -19,7 +16,6 @@ async function published() {
   return { store, setup, targetId: setup.target("issuing-ca-1", "full") };
 }
 
-/** The entry listHistory gives a fixture, `current` as given. */
 function entryOf(file: string, current: boolean) {
   const { sha256, crlNumber, thisUpdate } = crlEntry(file);
   return {

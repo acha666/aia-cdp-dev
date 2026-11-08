@@ -22,13 +22,6 @@ import { formatAlgorithm, versionText } from "@/x509/fields";
 import { SIGNATURE_ALG_NAMES } from "../../core/pki/constants.ts";
 import { plainExtension } from "../../core/pki/extensions.ts";
 
-// One CRL target, in DetailLayout's frame: header with label, kind, status and
-// downloads, then the current CRL in tabs (overview with the issuer link, CRL and base CRL numbers,
-// thisUpdate / nextUpdate / Next CRL Publish, algorithm and fingerprints; revoked certificates;
-// extensions). The target list gives the catalog's facts, the current CRL's DER (decoded in the
-// browser) the rest; a target the list does not have is not found. A target without a current CRL
-// says it is not published instead, and offers no downloads (its paths answer 404). `targetId`
-// matched the router's pattern. Tabs and panels as on CertificatePage.
 const props = defineProps<{ targetId: string }>();
 
 const i18n = useI18n();
@@ -43,7 +36,6 @@ const blob = useQuery(() => ({
   ...queries.crlBlob(current.value?.sha256 ?? ""),
   enabled: current.value !== null,
 }));
-/** The decoded current CRL; null without one. */
 const crl = computed(() => (current.value === null ? null : blob.data.value));
 const error = computed(() => list.error.value ?? (current.value ? blob.error.value : null));
 
@@ -54,7 +46,6 @@ function refetch() {
   }
 }
 
-/** The label once the current CRL (if any) is decoded too. */
 const name = computed(() => (crl.value === undefined ? undefined : data.value?.label));
 
 const status = computed(() => computeTargetStatus(current.value, now.value.getTime()));
@@ -63,7 +54,6 @@ const extensions = computed(() => crl.value?.crlExtensions?.extensions.map(plain
 const time = (iso: string | null | undefined) => formatDate(iso, i18n);
 const row = rowOf<keyof typeof en.details.crl>(i18n, "details.crl");
 
-/** The overview of the current CRL, in sections; the issuer link and the status are in the header. */
 const overview = computed(() => {
   const published = current.value;
   const decoded = crl.value;
@@ -99,10 +89,6 @@ const overview = computed(() => {
 
 const SECTIONS = ["information", "validity", "cryptography", "fingerprints"] as const;
 
-/**
- * Time to nextUpdate (or since it, once expired) next to the status badge; to thisUpdate while not
- * yet valid (a browser clock behind the server's), as on CertificatePage.
- */
 const statusDetail = computed(() => {
   const summary = current.value?.summary;
   if (!summary || status.value === "unknown") {
@@ -190,7 +176,6 @@ const PANEL = "rounded-md pt-2 focus-visible:ring-3 focus-visible:ring-ring/50";
           <RevokedTable :entries="crl.entries" />
         </TabsContent>
         <TabsContent value="extensions" :class="PANEL">
-          <!-- The extensions' accordion headings are h3. -->
           <h2 class="sr-only">{{ t("details.crl.extensions") }}</h2>
           <ExtensionList :extensions="extensions" />
         </TabsContent>

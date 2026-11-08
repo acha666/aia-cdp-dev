@@ -1,6 +1,3 @@
-// The public reads, on state built through importCertificate / applyConfig / publishCrl: the two
-// lists against the HTTP schemas (also without config.json), GET /api/v1/blobs/{sha256}, and a
-// failing store, which is a 500 on every read, never `200 []`.
 import { describe, expect, it } from "vitest";
 import { CONFIG_KEY, readState } from "../../src/core/catalog.ts";
 import { CertificateListItem, CrlTargetListItem } from "../../src/http/schemas.ts";
@@ -26,7 +23,6 @@ const certificateList = async (app: ReadService["app"]) =>
 const targetList = async (app: ReadService["app"]) =>
   okJson(await app.request(CRLS), CrlTargetListItem.array());
 
-/** The root labelled and served under two paths (the alias sorts first: "-" < "."). */
 const SERVED: SetupOptions = {
   configure: (config) => {
     const root = cert(ROOT).sha256;
@@ -37,11 +33,9 @@ const SERVED: SetupOptions = {
 };
 const served = await readService({ setup: SERVED });
 
-/** Published: issuing-ca-1 full and delta (AD CS style), root-ca full (no entries). */
 const ADCS_PUBLISHED = [FULL_ADCS, "crls/issuing-ca-1/delta-adcs.der", "crls/root-ca/full-01.der"];
 const adcs = await readService({ publish: ADCS_PUBLISHED });
 
-/** issuing-ca-1's full target: full-01, then full-02 as its current CRL. */
 const replaced = await readService({ publish: [FULL_01, FULL_02] });
 
 describe("GET /api/v1/certificates", () => {
@@ -69,7 +63,6 @@ describe("GET /api/v1/certificates", () => {
     });
     const issuing = items.find((item) => item.id === cert(ISSUING).sha256);
     expect(issuing).toMatchObject({ label: null, downloads: [] });
-    // Both of issuing-ca-1's targets, in targetId order.
     const targets = [
       { targetId: served.setup.target(ISSUING, "full"), kind: "full", label: `${ISSUING} full` },
       {
@@ -128,7 +121,6 @@ describe("GET /api/v1/crls", () => {
 });
 
 describe("the lists without config.json", () => {
-  /** Every version of issuing-ca-1's two targets in turn, and root-ca's full CRL. */
   const PUBLISHED = [
     FULL_01,
     "crls/issuing-ca-1/delta-01.der",
@@ -152,9 +144,6 @@ describe("the lists without config.json", () => {
   });
 });
 
-// The DER of an imported certificate or of a configured target's current CRL as stored, never a
-// superseded version; the SHA-256 parameter (any case; anything but 64 hex digits is a 400), 404
-// and the 500 of a blob the store lost.
 describe("GET /api/v1/blobs/{sha256}", () => {
   async function expectDer(res: Response, contentType: string, der: Uint8Array) {
     expect(res.status).toBe(200);

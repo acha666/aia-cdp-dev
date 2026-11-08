@@ -1,6 +1,5 @@
 import { computed, shallowRef } from "vue";
 
-/** Editing text or selecting a file replaces the previous upload source. */
 export function useCrlUploadInput() {
   const input = shallowRef<string | File>("");
   const text = computed({

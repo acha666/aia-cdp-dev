@@ -1,8 +1,3 @@
-// Shared by the web tests (not a test file itself): API bodies shaped by @/client/types with the
-// facts of tests/fixtures/pki (ids, serials, validity, CRL numbers and times from manifest.json;
-// subject names from the fixture generator; repeated bytes stand in for digests the manifest does
-// not list), the fixtures' DER for the blob route, and a fetch stub that answers hc's requests by
-// method and path.
 import { VueQueryPlugin } from "@tanstack/vue-query";
 import type { QueryClient } from "@tanstack/vue-query";
 import { flushPromises, mount } from "@vue/test-utils";
@@ -16,10 +11,8 @@ import type { CertificateListItem, CrlTargetListItem, PublishedCrl } from "@/cli
 import { createAppI18n } from "@/i18n";
 import { createAppRouter } from "@/router";
 
-/** manifest.now: the clock of every test that depends on one. */
 export const NOW = manifest.now;
 
-/** The delta's id sorts first: only the UI's kind rule puts issuing-ca-1's full target first. */
 export const TARGET_IDS = {
   issuingDelta: "4f0d3c1a-6a8e-4b8f-9c55-1d2e3f405161",
   issuingFull: "4f0d3c1a-6a8e-4b8f-9c55-1d2e3f405162",
@@ -39,19 +32,16 @@ const fixtureCertificate = (name: FixtureName) =>
 
 const fixtureCrl = (file: string) => manifest.crls.find((crl) => crl.file === file)!;
 
-/** The catalog's timestamp form (millisecond precision). */
 function iso(value: string): string {
   return new Date(value).toISOString();
 }
 
-/** The fixtures' DER by path under tests/fixtures/pki, as data URLs (vitest.config.ts). */
 const DER_URLS = import.meta.glob<string>("../fixtures/pki/**/*.der", {
   query: "?inline",
   import: "default",
   eager: true,
 });
 
-/** The bytes of the fixture `file` (e.g. "certs/root-ca.der"). */
 export function der(file: string): Uint8Array<ArrayBuffer> {
   const url = DER_URLS[`../fixtures/pki/${file}`];
   if (url === undefined) {
@@ -60,7 +50,6 @@ export function der(file: string): Uint8Array<ArrayBuffer> {
   return Uint8Array.from(atob(url.slice(url.indexOf(",") + 1)), (char) => char.charCodeAt(0));
 }
 
-/** The route of GET /api/v1/blobs/{sha256} answering with the fixture `file`. */
 function blobRoute(sha256: string, file: string): Record<string, Handler> {
   return {
     [`GET /api/v1/blobs/${sha256}`]: () =>
@@ -68,11 +57,9 @@ function blobRoute(sha256: string, file: string): Record<string, Handler> {
   };
 }
 
-/** The blob route of a certificate fixture (certs/<name>.der). */
 export const certificateBlob = (name: FixtureName) =>
   blobRoute(fixtureCertificate(name).sha256, `certs/${name}.der`);
 
-/** The blob route of a CRL fixture (its manifest file). */
 export const crlBlob = (file: string) => blobRoute(fixtureCrl(file).sha256, file);
 
 export function certificateItem(
@@ -102,7 +89,6 @@ export function certificateItem(
   } satisfies CertificateListItem;
 }
 
-/** The current CRL of a list item, from a manifest entry. */
 export function currentOf(file: string) {
   const crl = fixtureCrl(file);
   return {
@@ -125,11 +111,6 @@ export function currentOf(file: string) {
 const ISSUING = certificateItem("issuing-ca-1");
 const ROOT = certificateItem("root-ca");
 
-/**
- * The three targets of the page tests in the API's order (by targetId): issuing-ca-1
- * delta (unpublished) and full (full-adcs, current until its Next CRL Publish), root-ca full
- * (full-01).
- */
 export function targetItems(): CrlTargetListItem[] {
   return [
     {
@@ -159,7 +140,6 @@ export function targetItems(): CrlTargetListItem[] {
   ] satisfies CrlTargetListItem[];
 }
 
-/** The 201 / 200 body of an upload to issuing-ca-1's full target (full-02). */
 export function publishedCrl(outcome: PublishedCrl["outcome"]): PublishedCrl {
   const crl = fixtureCrl("crls/issuing-ca-1/full-02.der");
   return {
@@ -176,13 +156,6 @@ export function publishedCrl(outcome: PublishedCrl["outcome"]): PublishedCrl {
   } satisfies PublishedCrl;
 }
 
-// Mounting -------------------------------------------------------------------------------------------
-
-/**
- * The app's QueryClient (createQueryClient, so its retry rule applies) with retries that do not
- * wait: a retry still needs a timer turn, so a case that expects one waits for it (vi.waitFor).
- * Cleared when the test finishes.
- */
 export function testQueryClient(): QueryClient {
   const client = createQueryClient();
   client.setDefaultOptions({
@@ -192,10 +165,6 @@ export function testQueryClient(): QueryClient {
   return client;
 }
 
-/**
- * The whole app at `path` (memory history, en) with testQueryClient(); resolves once the lazy
- * route component is loaded and the first answers are rendered.
- */
 export async function mountApp(path: string) {
   const router = createAppRouter(createMemoryHistory());
   await router.push(path);
@@ -207,15 +176,11 @@ export async function mountApp(path: string) {
   return { router, wrapper, queryClient };
 }
 
-/** The [term, value] pairs of the description lists in `element`. */
 export function definitions(element: Pick<DOMWrapper<Element>, "findAll">): [string, string][] {
   const values = element.findAll("dd");
   return element.findAll("dt").map((term, index) => [term.text(), values[index]!.text()]);
 }
 
-// Fetch ------------------------------------------------------------------------------------------
-
-/** A v1 error envelope. */
 export function envelope(status: number, code: string, details?: unknown): Response {
   return Response.json(
     { error: { code, message: `${code} (test)`, ...(details === undefined ? {} : { details }) } },
@@ -225,11 +190,6 @@ export function envelope(status: number, code: string, details?: unknown): Respo
 
 export type Handler = (init: RequestInit | undefined) => Response | Promise<Response>;
 
-/**
- * Stubs the global fetch: `routes` maps "GET /api/v1/crls" (method, space, path) to a handler. The
- * health check answers healthy unless routed; anything else is a 404 envelope, so a test sees an
- * unexpected request in `calls` rather than a hang.
- */
 export function stubApi(routes: Record<string, Handler | undefined>) {
   const keyOf = (input: RequestInfo | URL, init?: RequestInit) => {
     const url = new URL(input instanceof Request ? input.url : input.toString(), "http://test");
@@ -249,7 +209,6 @@ export function stubApi(routes: Record<string, Handler | undefined>) {
   vi.stubGlobal("fetch", fetchMock);
   return {
     fetchMock,
-    /** "METHOD /path" of every request except the health check, in order. */
     calls: () =>
       fetchMock.mock.calls
         .map(([input, init]) => keyOf(input, init))

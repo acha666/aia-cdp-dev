@@ -1,4 +1,3 @@
-// The upload card's input state: pasted text or one file, never both.
 import { assert, test } from "vitest";
 import { useCrlUploadInput } from "@/composables/useCrlUploadInput";
 

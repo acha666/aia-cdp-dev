@@ -1,13 +1,6 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 
-/*
- * Segoe UI, the Windows UI font, sets text about 0.065em below the middle of its line (ascent
- * 1.079em and descent 0.251em around 0.700em capitals), visible in badges, buttons and tabs. These
- * faces are the installed Segoe UI with the same line height and the capitals centred, 500 drawn in
- * Semibold as Chrome draws Segoe UI; where it is not installed, the stack goes on to the system font
- * as before.
- */
 @font-face {
   font-family: "Segoe UI Centered";
   src: local("Segoe UI"), local("SegoeUI");
@@ -32,13 +25,6 @@
     "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
 }
 
-/*
- * State variants the nova components use (data-open:, data-closed:, data-active:). shadcn-vue@2.8.2
- * ships them in its own package (shadcn-vue/tailwind.css), which neither init nor add imports;
- * without them Tailwind's built-in data-* variants match attributes Reka UI never sets
- * ([data-open] instead of [data-state="open"]), so tabs lose their active state. The three used
- * here are copied verbatim from that file; the accordion keyframes come from tw-animate-css.
- */
 @custom-variant data-open {
   &:where([data-state="open"]),
   &:where([data-open]:not([data-open="false"])) {
@@ -88,11 +74,6 @@
   --radius-xl: calc(var(--radius) + 4px);
 }
 
-/*
- * Light and dark follow the system: Tailwind's dark: variant is prefers-color-scheme, the dark
- * tokens are under the same media query, and color-scheme gives native controls (scrollbars, form
- * controls) the same theme.
- */
 :root {
   color-scheme: light dark;
   --radius: 0.625rem;
@@ -110,11 +91,6 @@
   --muted-foreground: oklch(0.556 0 0);
   --accent: oklch(0.97 0 0);
   --accent-foreground: oklch(0.205 0 0);
-  /*
-   * --destructive (darker than shadcn's 0.577 0.245 27.325) and the app's status colours --success
-   * and --warning are badge text on a 10 % tint of themselves (dark theme: 20 %) over the page, a
-   * card or a hovered table row: at least 4.5:1 there in both themes.
-   */
   --destructive: oklch(0.53 0.22 27.4);
   --success: oklch(0.49 0.14 150.5);
   --warning: oklch(0.51 0.15 47);
@@ -139,7 +115,6 @@
     --muted-foreground: oklch(0.708 0 0);
     --accent: oklch(0.269 0 0);
     --accent-foreground: oklch(0.985 0 0);
-    /* Lighter than shadcn's 0.704 0.191 22.216 for the same 4.5:1 (see :root). */
     --destructive: oklch(0.74 0.15 22);
     --success: oklch(0.792 0.209 151.711);
     --warning: oklch(0.828 0.189 84.429);

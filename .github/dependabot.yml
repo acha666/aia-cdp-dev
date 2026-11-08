@@ -1,5 +1,3 @@
-# Commit messages come out as "chore(deps): ...", "chore(deps-dev): ..." and "ci(deps): ...":
-# the prefix carries no colon or scope of its own.
 version: 2
 updates:
   - package-ecosystem: npm
@@ -15,10 +13,8 @@ updates:
       prefix: chore
       include: scope
     ignore:
-      # typescript-eslint 8.x supports TypeScript < 6.1.0 (implementation §2.3).
       - dependency-name: typescript
         versions: [">=6.1.0"]
-      # @types/node follows the Node major in .nvmrc / engines (Node 26).
       - dependency-name: "@types/node"
         update-types: ["version-update:semver-major"]
 

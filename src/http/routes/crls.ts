@@ -1,5 +1,3 @@
-// CRL targets: the list and the upload. Failures are thrown, so onError writes every envelope
-// (no-store). HEAD of the list is Hono's automatic HEAD of its GET.
 import { createRoute, OpenAPIHono, z } from "@hono/zod-openapi";
 import { bearerAuth } from "hono/bearer-auth";
 import { bodyLimit } from "hono/body-limit";
@@ -24,8 +22,6 @@ import type { AppDeps, AppSettings } from "../types.ts";
 
 const SECURITY_SCHEME = "uploadBearer";
 
-// Anonymous (`{}`) while AIA_UPLOAD_TOKEN is unset, the bearer token once it is set. Typed: an
-// inferred union of the two element shapes would make createRoute lose the route's literal types.
 const security: Record<string, string[]>[] = [{}, { [SECURITY_SCHEME]: [] }];
 
 const TAGS = ["crls"];
@@ -49,8 +45,6 @@ function uploadCrlRoute(settings: AppSettings) {
       "`Authorization: Bearer <AIA_UPLOAD_TOKEN>` is needed only while that token is set.",
     tags: TAGS,
     security,
-    // Auth first: an anonymous client never gets its body read, nor a 413 that tells it the limit.
-    // bodyLimit also stops a streamed body without Content-Length.
     middleware: [
       ...(settings.uploadToken === undefined ? [] : [bearerAuth({ token: settings.uploadToken })]),
       crlMediaType,
@@ -89,8 +83,6 @@ function uploadCrlRoute(settings: AppSettings) {
   });
 }
 
-// Reads -----------------------------------------------------------------------------------------
-
 const listCrlTargetsRoute = createRoute({
   method: "get",
   path: "/crls",
@@ -107,9 +99,6 @@ const listCrlTargetsRoute = createRoute({
   },
 });
 
-// Failures --------------------------------------------------------------------------------------
-
-/** The public message for each publish failure. */
 const FAILURES = {
   invalid_crl: "Not a valid X.509 CRL",
   not_yet_valid: "The CRL's thisUpdate is more than 5 minutes ahead of the service's clock",
@@ -125,7 +114,6 @@ const FAILURES = {
   concurrent_update: "The catalog kept changing concurrently: retry the upload",
 } as const satisfies Record<PublishErrorCode, string>;
 
-/** Status and message; details as publishCrl gives them (concurrent_update has none). */
 function publishError(failure: PublishFailure): ApiError {
   const message =
     failure.error === "issuer_not_found" && "reason" in failure.details
@@ -146,8 +134,6 @@ function publishError(failure: PublishFailure): ApiError {
   );
 }
 
-// Sub-app ---------------------------------------------------------------------------------------
-
 export function crlRoutes(deps: AppDeps) {
   const crls = new OpenAPIHono();
 
@@ -167,7 +153,6 @@ export function crlRoutes(deps: AppDeps) {
       if (bytes.byteLength === 0) {
         throw new ApiError(400, "bad_request", "Expected a CRL, but the upload is empty");
       }
-      // Logs the call's one `publish` line, also when it throws (then onError's 500).
       const result = await publishCrl(deps, bytes);
       if ("error" in result) {
         throw publishError(result);

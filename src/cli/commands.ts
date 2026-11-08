@@ -1,7 +1,3 @@
-// The aia commands, which src/cli/aia.ts dispatches. From the core they share isDerSequence /
-// splitPemBlocks (the API takes one certificate per request, so a PEM bundle goes block by block)
-// and the static config rules (`config validate` runs offline). Success bodies are typed by the
-// service's schemas (type-only imports) and not checked again here.
 import type { z } from "zod";
 import { validateConfig } from "../core/admin.ts";
 import type { ConfigIssue } from "../core/admin.ts";
@@ -14,14 +10,10 @@ import type { ImportedCertificate, PublishedCrl } from "../http/schemas.ts";
 import { createClient, describeHttp, Failure, readBytes, reasonOf } from "./client.ts";
 import type { Api, CliIo, Context, HttpError } from "./client.ts";
 
-// Output -----------------------------------------------------------------------------------------
-
-/** A command's result on stdout: `value` as JSON with --json, else `text`. */
 function output(ctx: Context, value: unknown, text: string): void {
   ctx.io.stdout(ctx.json ? `${JSON.stringify(value, null, 2)}\n` : text);
 }
 
-// Field names print dotted; map keys (ids, paths) bracketed: paths["/ca/root.crt"].certificate.
 function pathText(path: readonly (string | number)[]): string {
   if (path.length === 0) {
     return "(document)";
@@ -42,9 +34,6 @@ function issuesText(title: string, issues: readonly ConfigIssue[]): string {
   return `${title} (${count}):\n${lines.join("\n")}\n`;
 }
 
-// import, publish --------------------------------------------------------------------------------
-
-/** Where a result comes from: the file, and the 1-based block number within a PEM bundle. */
 interface Where {
   file: string;
   block?: number;
@@ -52,11 +41,9 @@ interface Where {
 
 type ItemFailure = Where & { ok: false; error: { message: string } & Partial<HttpError> };
 
-/** One line of the import or publish report (`--json`: the array `results`). */
 type Uploaded = z.infer<typeof ImportedCertificate> | z.infer<typeof PublishedCrl>;
 type ItemResult = (Where & { ok: true } & Uploaded) | ItemFailure;
 
-/** A Failure as the result of the item it stopped; any other error propagates. */
 function failedItem(where: Where, error: unknown): ItemFailure {
   if (!(error instanceof Failure)) {
     throw error;
@@ -66,7 +53,6 @@ function failedItem(where: Where, error: unknown): ItemFailure {
 
 type UploadBody = Uint8Array | string;
 
-/** A failure's details beyond `reason` (which describeHttp prints), for the text report. */
 function detailsText(details: unknown): string {
   if (typeof details !== "object" || details === null) {
     return "";
@@ -86,10 +72,6 @@ function detailsText(details: unknown): string {
   return parts.length === 0 ? "" : ` (${parts.join("; ")})`;
 }
 
-/**
- * POSTs one upload. The service recognizes the format from the bytes, so every body goes as
- * application/octet-stream. An error response, or a Failure on the way, is the item's failure.
- */
 async function postItem(
   api: Api,
   path: string,
@@ -113,7 +95,6 @@ async function postItem(
   }
 }
 
-/** Read files once and send uploads in order. Each failure is reported without stopping the rest. */
 export async function uploadFiles(
   ctx: Context,
   files: readonly string[],
@@ -154,7 +135,6 @@ export async function uploadFiles(
       continue;
     }
     for (const [index, body] of bodies.entries()) {
-      // String bodies are the certificate blocks of a PEM bundle, including a single-block PEM.
       const where = { file, ...(typeof body === "string" ? { block: index + 1 } : {}) };
       const source = bodies.length > 1 ? `${file} [block ${index + 1}/${bodies.length}]` : file;
       report(await postItem(api, path, where, body), source);
@@ -165,12 +145,6 @@ export async function uploadFiles(
   return summary.failed === 0 ? 0 : 1;
 }
 
-/**
- * The uploads of one file, recognized from the bytes as the service does (toDer): one DER
- * SEQUENCE is sent as is; text with PEM boundaries is split into its CERTIFICATE blocks (other
- * labels, such as a key, are skipped and never sent); anything else is sent as is for the service
- * to report. A block's source is `<file> [block i/n]` when the file has more than one.
- */
 function certificateBodies(bytes: Uint8Array): UploadBody[] {
   const text = new TextDecoder().decode(bytes);
   if (isDerSequence(bytes) || !text.includes("-----BEGIN ")) {
@@ -188,15 +162,12 @@ function certificateBodies(bytes: Uint8Array): UploadBody[] {
   return blocks;
 }
 
-// config -----------------------------------------------------------------------------------------
-
 export async function configShow(ctx: Context): Promise<number> {
   const api = await createClient(ctx);
   const reply = await api("/admin/config");
   if (reply.status === 404) {
     throw new Failure("nothing has been configured yet (HTTP 404)");
   }
-  // As stored, also when an out-of-band write broke it: the GET exists to allow repairs.
   const { headers, text } = reply.check();
   const etag = headers.get("ETag");
   let config: unknown = null;
@@ -243,7 +214,6 @@ export async function configApply(ctx: Context, file: string): Promise<number> {
     return 1;
   }
   const api = await createClient(ctx);
-  // The precondition comes from a fresh GET: If-Match its ETag, or If-None-Match: * on 404.
   const current = await api("/admin/config");
   let precondition: Record<string, string>;
   if (current.status === 404) {
@@ -270,7 +240,6 @@ export async function configApply(ctx: Context, file: string): Promise<number> {
     return 0;
   }
   const error = reply.error();
-  // Not retried: the configuration that is there now may be one the operator has not seen.
   if (reply.status === 412) {
     throw new Failure(
       `${describeHttp(error)}\nconfig.json changed after it was read (another apply?): ` +
@@ -284,8 +253,6 @@ export async function configApply(ctx: Context, file: string): Promise<number> {
   }
   throw new Failure(describeHttp(error));
 }
-
-// history, delete-certificate --------------------------------------------------------------------
 
 function historyPath(targetId: string): string {
   return `/admin/crls/${encodeURIComponent(targetId)}/history`;
@@ -352,10 +319,7 @@ export async function deleteCertificate(ctx: Context, id: string): Promise<numbe
   throw new Failure(describeHttp(error));
 }
 
-// new-target-id, health --------------------------------------------------------------------------
-
 export function newTargetId(ctx: Context): number {
-  // Target ids are assigned by tools, never by the service.
   const id = crypto.randomUUID();
   output(ctx, { id }, `${id}\n`);
   return 0;
@@ -364,7 +328,6 @@ export function newTargetId(ctx: Context): number {
 export async function health(ctx: Context): Promise<number> {
   const api = await createClient(ctx, "public");
   const reply = await api("/health");
-  // 200 (healthy, degraded) and 503 (unhealthy) carry the report.
   const hasReport = reply.status === 200 || reply.status === 503;
   const report = reply.check(hasReport).json<HealthReport>();
   const { store, configuration } = report.checks;

@@ -27,7 +27,6 @@ describe("HealthBadge", () => {
 
     await flushPromises();
 
-    // stubApi answers the degraded body only for GET /api/v1/health.
     const root = badge.get('[data-slot="badge"]');
     expect(root.attributes("role")).toBe("status");
     expect(root.attributes("data-state")).toBe("degraded");

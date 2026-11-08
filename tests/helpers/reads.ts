@@ -1,6 +1,3 @@
-// Shared by the HTTP route tests: a service set up as an operator would (importCertificate,
-// applyConfig, publishCrl on a MemoryStore) for the read and upload routes, and the envelope
-// checks.
 import { expect } from "vitest";
 import type { ObjectStore } from "../../src/core/store.ts";
 import { createApp } from "../../src/http/app.ts";
@@ -11,20 +8,15 @@ import { publishFile, setupPublish } from "./publish.ts";
 import type { PublishSetup, SetupOptions } from "./publish.ts";
 
 export interface ReadServiceOptions {
-  /** The shared setup of tests/helpers/publish.ts unless given. */
   setup?: SetupOptions;
-  /** CRL fixtures published in order; each must be created or updated. */
   publish?: readonly string[];
-  /** Wraps the store the setup wrote, for the app only. */
   wrap?: (base: ObjectStore) => ObjectStore;
-  /** Passed to testDeps; the store is the setup's all the same. */
   overrides?: TestOverrides;
 }
 
 export interface ReadService {
   app: ReturnType<typeof createApp>;
   deps: TestDeps;
-  /** The store the setup wrote (unwrapped). */
   base: MemoryStore;
   setup: PublishSetup;
 }
@@ -43,11 +35,6 @@ export async function readService(options: ReadServiceOptions = {}): Promise<Rea
   return { app: createApp(deps), deps, base, setup };
 }
 
-/**
- * The JSON body of a 200 read: application/json and no-store. With a schema, the body as it
- * parses, which must equal the body: parse() drops keys the schema does not know, so equal means
- * no other field leaked.
- */
 export async function okJson<T = unknown>(
   res: Response,
   schema?: { parse(value: unknown): T }
@@ -64,10 +51,6 @@ export async function okJson<T = unknown>(
   return parsed;
 }
 
-/**
- * The envelope of a failed request with `status` and `code`, exactly `{ error: { code, message,
- * details? } }`, no-store. Returns the error object.
- */
 export async function errorOf(
   res: Response,
   status: number,
@@ -85,7 +68,6 @@ export async function errorOf(
   return body.error;
 }
 
-/** The plain 500: the fixed text only, never the exception or a store key. */
 export async function expectInternal(res: Response, ...secrets: string[]): Promise<void> {
   const text = await res.clone().text();
   expect(await errorOf(res, 500, "internal")).toEqual({

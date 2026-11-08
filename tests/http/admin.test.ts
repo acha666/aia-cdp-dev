@@ -1,6 +1,3 @@
-// Admin routes: the token gate, POST and DELETE /api/v1/admin/certificates, GET and PUT
-// /api/v1/admin/config (If-None-Match: * for the first configuration, If-Match with the SHA-256
-// ETag afterwards) and a target's history.
 import { describe, expect, it } from "vitest";
 import { CONFIG_KEY, encodeJson } from "../../src/core/catalog.ts";
 import type { Config } from "../../src/core/catalog.ts";
@@ -20,10 +17,8 @@ const CERTIFICATES = "/api/v1/admin/certificates";
 const CONFIG = "/api/v1/admin/config";
 const SOME_TARGET = crypto.randomUUID();
 
-// What a RequestInit takes (BodyInit is not a global in the Node program).
 type Body = RequestInit["body"];
 
-/** createApp with the admin token set (unless `overrides.settings` says otherwise). */
 function setup(overrides: TestOverrides = {}) {
   const deps = testDeps({
     ...overrides,
@@ -54,13 +49,11 @@ function put(app: App, body: string, headers: Record<string, string>) {
   });
 }
 
-/** The quoted SHA-256 of `bytes`: the only HTTP ETag the admin routes send. */
 async function etagOf(bytes: Uint8Array | string): Promise<string> {
   const data = typeof bytes === "string" ? new TextEncoder().encode(bytes) : bytes;
   return `"${await sha256Hex(data)}"`;
 }
 
-/** A valid configuration serving root-ca, which must have been imported. */
 function rootConfig(label = "Root CA"): Config {
   const id = cert("root-ca").sha256;
   return {
@@ -172,7 +165,6 @@ describe("POST /api/v1/admin/certificates", () => {
     const base = new MemoryStore();
     const first = setup({ store: base }).app;
     expect((await post(first, der("root-ca"), "application/pkix-cert")).status).toBe(201);
-    // Four lost conditional writes: 1 attempt + 3 retries (no-op sleep).
     const { app } = setup({ store: flakyStore(base, { failIfMatch: 4 }) });
     const res = await post(app, der("issuing-ca-1"), "application/pkix-cert");
     await errorOf(res, 409, "concurrent_update");
@@ -209,7 +201,6 @@ describe("GET /api/v1/admin/config", () => {
 
 describe("PUT /api/v1/admin/config", () => {
   it("applies the first configuration with If-None-Match: *, then replaces it with If-Match", async () => {
-    // Store ETags that are not the digest, as on R2: the HTTP ETag is the SHA-256 all the same.
     const { app } = setup({ store: opaqueEtagStore() });
     expect((await post(app, der("root-ca"), "application/pkix-cert")).status).toBe(201);
 
@@ -219,7 +210,6 @@ describe("PUT /api/v1/admin/config", () => {
     expect(first.headers.get("Cache-Control")).toBe("no-store");
     expect(first.headers.get("Content-Type")).toBe("application/json");
     expect(first.headers.get("ETag")).toBe(await etagOf(firstBytes));
-    // The canonical bytes as stored: GET returns the same.
     expect(new Uint8Array(await first.arrayBuffer())).toEqual(firstBytes);
     const got = await app.request(CONFIG, { headers: AUTH });
     expect(got.headers.get("ETag")).toBe(first.headers.get("ETag"));
@@ -247,7 +237,6 @@ describe("PUT /api/v1/admin/config", () => {
 
   it("answers If-Match while nothing is configured, and If-None-Match: * afterwards, with 412", async () => {
     const { app, deps } = setup();
-    // root-ca is not imported: the precondition fails before the rules (V4) are checked.
     const invalid = JSON.stringify(rootConfig());
     const early = await put(app, invalid, { "If-Match": await etagOf(MINIMAL_CONFIG) });
     await errorOf(early, 412, "precondition_failed");
@@ -278,7 +267,6 @@ describe("PUT /api/v1/admin/config", () => {
 
   it("answers a rule violation with 422 config_invalid and its issues", async () => {
     const { app, deps } = setup();
-    // root-ca is not imported (V4) and the path has a bad character (V2).
     const config = rootConfig();
     config.paths["/ca/root ca.crt"] = { certificate: cert("root-ca").sha256 };
     const res = await put(app, JSON.stringify(config), { "If-None-Match": "*" });

@@ -10,13 +10,6 @@ import ExtensionList from "@/components/x509/ExtensionList.vue";
 import { formatDate } from "@/utils/dates";
 import { entryColumns } from "@/x509/extensions";
 
-// The revoked certificates of a target's current CRL: serial number, revocation date,
-// reason and invalidity date; an empty list says so. A CRL can have tens of
-// thousands of entries, so the table renders PAGE_SIZE rows at a time; the header row
-// stays in view while the box scrolls. On the first and the last page one page button is only
-// aria-disabled (a disabled button drops the focus to <body>). A row with entry extensions expands
-// to list them all, since the columns leave out a hold instruction, the critical flags and any
-// extension not decoded.
 const props = defineProps<{ entries: readonly CrlEntry[] }>();
 
 const PAGE_SIZE = 200;
@@ -24,10 +17,8 @@ const PAGE_SIZE = 200;
 const i18n = useI18n();
 const { t } = i18n;
 const page = ref(0);
-/** The keys of the expanded rows; a row stays expanded across page changes. */
 const expanded = ref(new Set<number>());
 
-// A refetch with other entries starts over on the first page, every row collapsed.
 watch(
   () => props.entries,
   () => {
@@ -47,7 +38,6 @@ const pageCount = computed(() => Math.max(1, Math.ceil(total.value / PAGE_SIZE))
 const first = computed(() => page.value * PAGE_SIZE);
 const last = computed(() => Math.min(first.value + PAGE_SIZE, total.value));
 
-/** Only the rows of the current page are formatted. */
 const rows = computed(() =>
   props.entries.slice(first.value, last.value).map((entry, index) => ({
     key: first.value + index,

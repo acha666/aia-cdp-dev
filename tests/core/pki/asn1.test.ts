@@ -7,10 +7,8 @@ import {
   readStrictTime,
 } from "../../../src/core/pki/asn1.ts";
 
-/** Octets from hex pairs separated by spaces. */
 const bytes = (hex: string) => Uint8Array.fromHex(hex.replaceAll(" ", ""));
 
-/** A time value as asn1js decodes these content bytes (its time classes would re-encode them). */
 function decodedTime(tagNumber: 23 | 24, raw: string): asn1.BaseBlock {
   const block = new asn1.Primitive({
     idBlock: { tagClass: 1, tagNumber },
@@ -48,7 +46,6 @@ describe("strict RFC 5280 times", () => {
 });
 
 describe("assertWellFormed", () => {
-  // asn1js decodes all of these without an error (X.690 §8 and §10).
   it.each([
     ["the indefinite length", "30 80 02 01 01 00 00"],
     ["a long-form length below 128", "04 81 03 01 02 03"],
@@ -62,8 +59,6 @@ describe("assertWellFormed", () => {
     expect(() => assertWellFormed(decoded.result)).toThrow(/^Not DER: /);
   });
 
-  // Only the children of constructed values are walked: extension values, key ids, hashes, keys
-  // and signatures are opaque, whatever asn1js made of them on speculation.
   it.each([
     ["an OCTET STRING holding BER", "04 03 04 81 00"],
     ["a BIT STRING holding a broken UTCTime", `03 15 00 17 12 ${"41 ".repeat(18)}`],

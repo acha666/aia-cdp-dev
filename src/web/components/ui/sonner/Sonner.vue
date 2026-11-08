@@ -4,7 +4,6 @@ import type { ToasterProps } from "vue-sonner";
 import { OctagonXIcon } from "@lucide/vue";
 import { Toaster as Sonner } from "vue-sonner";
 
-// The app shows only error toasts (toast.error), without a close button.
 const props = defineProps<Pick<ToasterProps, "position">>();
 </script>
 

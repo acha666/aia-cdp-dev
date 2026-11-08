@@ -1,22 +1,16 @@
-// The aia CLI's shared pieces and its access to the service: the base URL, the command's bearer
-// token and the rule for sending it, requests with a timeout, and the error envelope.
-
 export interface CliIo {
   fetch: (url: string, init: RequestInit) => Promise<Response>;
   env: Readonly<Record<string, string | undefined>>;
-  /** Each call receives finished text, newlines included. */
   stdout: (text: string) => void;
   stderr: (text: string) => void;
   readFile: (path: string) => Promise<Uint8Array>;
   writeFile: (path: string, bytes: Uint8Array) => Promise<void>;
 }
 
-/** Wrong arguments or settings: exit 2. */
 export class UsageError extends Error {
   override name = "UsageError";
 }
 
-/** The operation failed; the message is printed as is: exit 1. */
 export class Failure extends Error {
   override name = "Failure";
 }
@@ -24,15 +18,11 @@ export class Failure extends Error {
 export interface Context {
   io: CliIo;
   json: boolean;
-  /** --url, else AIA_URL. */
   url: string | undefined;
-  /** --token-file: wins over both variables of the command's token. */
   tokenFile: string | undefined;
-  /** --allow-insecure-http: a token may go over http:// to any host. */
   allowInsecureHttp: boolean;
 }
 
-/** io.readFile; a file that cannot be read throws `fail(reason)`. */
 export async function readBytes(
   io: CliIo,
   file: string,
@@ -52,19 +42,13 @@ export function reasonOf(error: unknown): string {
   if (error.name === "TimeoutError") {
     return `no answer within ${REQUEST_TIMEOUT_MS / 1000} s`;
   }
-  // fetch rejects with "fetch failed" and the socket error as its cause.
   return error.cause instanceof Error ? `${error.message} (${error.cause.message})` : error.message;
 }
 
-// Service access ---------------------------------------------------------------------------------
-
 const REQUEST_TIMEOUT_MS = 30_000;
 
-// RFC 6750 b64token, as the service requires of AIA_ADMIN_TOKEN (src/runtime/settings.ts). Checked
-// here as well, because fetch rejects an invalid header value with a message that quotes it.
 const BEARER_TOKEN = /^[A-Za-z0-9._~+/-]+=*$/;
 
-/** --url / AIA_URL, parsed: an http:// or https:// URL. */
 function parsedServiceUrl(ctx: Context): URL {
   if (ctx.url === undefined || ctx.url === "") {
     throw new UsageError("no service URL: pass --url or set AIA_URL");
@@ -79,21 +63,12 @@ function parsedServiceUrl(ctx: Context): URL {
   return url;
 }
 
-/**
- * localhost, 127.0.0.0/8 or [::1]: the Docker exec and development setups. The URL parser has
- * normalized the host already (127.1 → 127.0.0.1, [0:0:0:0:0:0:0:1] → [::1], case).
- */
 function isLoopback(hostname: string): boolean {
   return (
     hostname === "localhost" || hostname === "[::1]" || /^127(?:\.[0-9]{1,3}){3}$/.test(hostname)
   );
 }
 
-/**
- * A token goes over https://, or over http:// to a loopback host, unless --allow-insecure-http.
- * The production host answers plain HTTP with no redirect (AIA / CDP clients need it), so
- * http://<host> reaches the service and would put the token on the wire in clear text.
- */
 function checkTokenTransport(ctx: Context, name: string, url: URL): void {
   if (url.protocol === "http:" && !isLoopback(url.hostname) && !ctx.allowInsecureHttp) {
     throw new UsageError(
@@ -103,12 +78,6 @@ function checkTokenTransport(ctx: Context, name: string, url: URL): void {
   }
 }
 
-/**
- * The command's bearer token, from --token-file, else `<variable>_FILE`, else `<variable>`
- * (trimmed); undefined when none of them is set. Both variables set, an unreadable file, an
- * empty or malformed token, or a token that checkTokenTransport refuses is a usage error.
- * Messages name the source, never the token.
- */
 async function bearerToken(
   ctx: Context,
   name: "admin" | "upload",
@@ -146,7 +115,6 @@ async function bearerToken(
   return token;
 }
 
-/** Resolve the base URL and token once. Paths are relative to /api/v1, including a leading /. */
 export async function createClient(ctx: Context, access: "admin" | "upload" | "public" = "admin") {
   const url = parsedServiceUrl(ctx);
   const base = `${url.origin}${url.pathname.replace(/\/+$/, "")}/api/v1`;
@@ -167,10 +135,6 @@ export async function createClient(ctx: Context, access: "admin" | "upload" | "p
 
 export type Api = Awaited<ReturnType<typeof createClient>>;
 
-/**
- * fetch with a timeout, and the whole body read: a request that gets no response, or a body that
- * fails after the headers (a reset connection, the timeout firing mid-body), is a Failure.
- */
 async function request(ctx: Context, url: string, init: RequestInit) {
   let res: Response;
   try {
@@ -212,7 +176,6 @@ async function request(ctx: Context, url: string, init: RequestInit) {
   };
 }
 
-/** A non-success response: the error envelope's fields, or the status line without one. */
 export interface HttpError {
   status: number;
   code?: string;
@@ -231,9 +194,7 @@ function httpError(reply: Pick<Response, "status" | "statusText"> & { text: stri
         ...(error.details === undefined ? {} : { details: error.details }),
       };
     }
-  } catch {
-    // Not an envelope (a proxy's page, say): fall through.
-  }
+  } catch {}
   return { status: reply.status, message: reply.statusText || "unexpected response" };
 }
 

@@ -4,10 +4,6 @@ import { useI18n } from "vue-i18n";
 import { useLocale } from "@/composables/useLocale";
 import { LOCALE_NAMES, SUPPORTED_LOCALES } from "@/i18n";
 
-// The UI language, as a plain native select in the footer (two entries, each named in its own
-// language); useLocale remembers the choice (locale-preference). The options carry the popover
-// colours: Chrome and Firefox on Windows draw the open list with them, and a transparent select
-// would otherwise leave light text on a white list in the dark theme.
 const locale = useLocale();
 const { t } = useI18n();
 </script>

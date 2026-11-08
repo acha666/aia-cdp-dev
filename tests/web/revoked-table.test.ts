@@ -1,6 +1,3 @@
-// The revoked certificates of a CRL target: every entry of the decoded CRL, which the table pages
-// itself at 200 rows, saying which rows of how many a page shows. Entry extensions are DER, as
-// parseCRL leaves them.
 import { mount } from "@vue/test-utils";
 import type { VueWrapper } from "@vue/test-utils";
 import { Time } from "pkijs";
@@ -32,7 +29,6 @@ function entry(serial: string, revoked: string, extensions: PlainExtension[] = [
   };
 }
 
-/** `count` entries with serials 0001, 0002, ... (no entry extensions). */
 const entries = (count: number) =>
   Array.from({ length: count }, (_, index) =>
     entry((index + 1).toString(16).padStart(4, "0"), "2026-01-01T00:00:00Z")
@@ -44,7 +40,6 @@ const extension = (extnID: string, value: string): PlainExtension => ({
   value: bytes(value),
 });
 
-/** The data cells of each body row; the first cell holds the extensions toggle. */
 const rowTexts = (table: VueWrapper) =>
   table.findAll("tbody tr").map((row) =>
     row
@@ -81,15 +76,12 @@ describe("RevokedTable", () => {
     expect(table.get('[data-testid="revoked-range"]').text()).toBe("201–201 of 201");
     expect(table.get('[data-testid="next-page"]').attributes("aria-disabled")).toBe("true");
 
-    // Another list (a refetch) starts again on the first page.
     await table.setProps({ entries: entries(250) });
     expect(table.get('[data-testid="revoked-range"]').text()).toBe("1–200 of 250");
   });
 
   it("fills reason and invalidity date from the entry extensions", () => {
-    // Dates show in the browser's time zone (UTC+12 and later is already Jan 02).
     vi.stubEnv("TZ", "UTC");
-    // leaf-revoked in crls/issuing-ca-1/full-01: keyCompromise with an invalidity date.
     const revoked = entry("2002", "2026-01-01T12:00:00Z", [
       extension("2.5.29.21", "0a0101"),
       extension("2.5.29.24", `180f${ascii("20251231120000Z")}`),
@@ -104,7 +96,6 @@ describe("RevokedTable", () => {
   });
 
   it("expands a row with entry extensions into all of them, the hold instruction too", async () => {
-    // The certificateHold entry of crls/issuing-ca-2/full-01.
     const hold = entry("3000", "2025-12-20T00:00:00Z", [
       extension("2.5.29.21", "0a0106"),
       extension("2.5.29.23", "06072a8648ce380203"),

@@ -1,13 +1,3 @@
-// aia: the command-line client of the admin API and the CRL upload route. A thin HTTP client using
-// Commander and fetch. This file declares the command tree; Commander parses the arguments and
-// generates help. client.ts holds the service access and the token rules, commands.ts the commands.
-//
-//   node src/cli/aia.ts <command> …          (pnpm aia …; Node runs the source)
-//   node dist/server/cli/aia.js <command> …  (the Docker image)
-//
-// main(argv, io) does all I/O through `io`, so tests inject fetch = app.request. Exit codes: 0
-// success, 1 the operation failed (or the service is not healthy), 2 usage error. Tokens are never
-// printed, and go over plain http:// only to a loopback host or with --allow-insecure-http.
 import { readFile, writeFile } from "node:fs/promises";
 import process from "node:process";
 import { Command, CommanderError } from "commander";
@@ -35,7 +25,6 @@ interface Options {
   json?: boolean;
 }
 
-/** A fresh command tree per invocation: options and injected I/O never leak between runs. */
 export async function main(argv: readonly string[], io: CliIo): Promise<number> {
   let code = 0;
   const program = new Command()
@@ -57,9 +46,7 @@ export async function main(argv: readonly string[], io: CliIo): Promise<number> 
     .configureHelp({ showGlobalOptions: true })
     .configureOutput({
       writeOut: io.stdout,
-      writeErr: () => {
-        // The catch below reports usage errors once, with the CLI's prefix and exit code.
-      },
+      writeErr: () => {},
     })
     .exitOverride()
     .hook("preAction", (_, command) => {
@@ -71,7 +58,6 @@ export async function main(argv: readonly string[], io: CliIo): Promise<number> 
       }
     });
 
-  // Command handlers share Context first; Commander supplies their positional arguments.
   const action =
     <Args extends unknown[]>(run: (ctx: Context, ...args: Args) => number | Promise<number>) =>
     async (...args: Args): Promise<void> => {
@@ -171,9 +157,6 @@ export async function main(argv: readonly string[], io: CliIo): Promise<number> 
   }
 }
 
-// Entry ------------------------------------------------------------------------------------------
-
-/** The real process: global fetch, process.env, stdout / stderr and the file system. */
 export function processIo(): CliIo {
   return {
     fetch: (url, init) => fetch(url, init),
@@ -189,10 +172,7 @@ export function processIo(): CliIo {
   };
 }
 
-// Only as a program (node src/cli/aia.ts, node dist/server/cli/aia.js): importing the module
-// (tests, scripts/seed-dev.ts) runs nothing.
 if (import.meta.main) {
-  // `aia config show | head`: a reader that stops early closes the pipe, which is no error.
   process.stdout.on("error", (error: NodeJS.ErrnoException) => {
     if (error.code !== "EPIPE") {
       throw error;

@@ -14,9 +14,6 @@ import {
 import { cert, fixture, manifest } from "../fixtures/pki.ts";
 import { attribute, extension, nameOf, pkiError } from "../helpers/pki.ts";
 
-// The catalog summaries: buildCertificateSummary on every fixture certificate, buildCrlSummary on
-// every parsable fixture CRL.
-
 const sha1 = (der: Uint8Array) => createHash("sha1").update(der).digest("hex");
 const iso = (time: string | null) => (time === null ? null : new Date(time).toISOString());
 
@@ -30,10 +27,8 @@ describe("buildCertificateSummary", () => {
     "summarizes certs/%s.der in the catalog format",
     async (name, entry) => {
       const summary = await summaryOf(name);
-      // The issuer side matches the issuing certificate's subject side.
       const issuer = await summaryOf(entry.issuer);
       expect(summary).toEqual({
-        // Uppercase hex of the INTEGER content bytes, as `openssl x509 -serial` prints it.
         serialNumber: entry.serial,
         notBefore: iso(entry.notBefore),
         notAfter: iso(entry.notAfter),
@@ -110,11 +105,9 @@ describe("buildCrlSummary", () => {
       sha1: sha1(der),
       nextPublish: iso(crl.nextPublish),
     });
-    // The strict catalog schema takes it as is (no missing or extra keys, canonical formats).
     expect(CrlSummarySchema.parse(summary)).toEqual(summary);
   });
 
-  // The time only informs the CRL status: a value that cannot be read is null, not a rejection.
   const time = new asn1.UTCTime({ valueDate: new Date("2026-01-10T12:00:00Z") });
   it.each([
     [
@@ -156,7 +149,6 @@ describe("key identifiers and CRL numbers", () => {
     expect(() => authorityKeyId("crl", [extension("2.5.29.35", new asn1.Null())])).toThrow(
       malformed
     );
-    // The three fields in their order and nothing else (RFC 5280 §4.2.1.1).
     const tagged = (tagNumber: number, ...bytes: number[]) =>
       new asn1.Primitive({
         idBlock: { tagClass: 3, tagNumber },

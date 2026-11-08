@@ -1,6 +1,3 @@
-// Display order of CRL targets.
-
-/** Display order of targets: by label, then full before delta of the same label, then by id. */
 export function compareTargets(
   a: { label: string; kind: "full" | "delta"; targetId: string },
   b: { label: string; kind: "full" | "delta"; targetId: string },

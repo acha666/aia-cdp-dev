@@ -1,5 +1,3 @@
-// Catalog and config values built from the fixtures: digests, key ids and sizes come from the files
-// or manifest.json, never from literals.
 import type { Catalog, CatalogCertificate, Config, CurrentCrl } from "../../src/core/catalog.ts";
 import {
   CATALOG_KEY,
@@ -13,10 +11,6 @@ import type { ObjectStore } from "../../src/core/store.ts";
 import { buildCertificateSummary, buildCrlSummary } from "../../src/core/summary.ts";
 import { cert, crlEntry, fixture, NOW } from "../fixtures/pki.ts";
 
-/**
- * A config.json that serves each certificate fixture at /ca/<name>.crt, with a full CRL target at
- * /crl/<name>.crl.
- */
 export function configFor(names: readonly string[]): Config {
   const config = emptyConfig();
   for (const name of names) {
@@ -30,7 +24,6 @@ export function configFor(names: readonly string[]): Config {
   return config;
 }
 
-/** The catalog entry importCertificate writes for certs/<name>.der at NOW. */
 export async function certificateEntry(
   name: string
 ): Promise<{ id: string; entry: CatalogCertificate }> {
@@ -47,10 +40,6 @@ export async function certificateEntry(
   };
 }
 
-/**
- * The `current` record publishCrl writes for a CRL fixture verified by its issuer, published at
- * NOW: blob key and summary come from crlBlobKey and buildCrlSummary (the blob is not written).
- */
 export async function currentCrl(file: string, targetId: string): Promise<CurrentCrl> {
   const entry = crlEntry(file);
   const der = fixture(file);
@@ -65,7 +54,6 @@ export async function currentCrl(file: string, targetId: string): Promise<Curren
   };
 }
 
-/** Writes catalog.json in the canonical format, unconditionally. */
 export async function putCatalog(store: ObjectStore, catalog: Catalog): Promise<void> {
   await store.put(CATALOG_KEY, encodeJson(catalog));
 }

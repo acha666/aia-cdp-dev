@@ -7,9 +7,6 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { usePageTitle } from "@/composables/usePageTitle";
 
-// The frame of a detail page: the back link, then the page's own content once the
-// resource is loaded (`name` is set), else that `id` is not in its list (`missing`), the failure
-// with a retry, or a skeleton. The page title is the resource's name, else the state's.
 const props = defineProps<{
   kind: "certificate" | "crl";
   id: string;

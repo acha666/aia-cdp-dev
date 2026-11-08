@@ -13,14 +13,8 @@ import {
   TableRow,
 } from "@/components/ui/table";
 
-// The card of an overview list (CertificateTable, CrlTargetTable): its title and item count, then
-// the failure with a retry while there is no data, else the table: a header cell per column, three
-// skeleton rows before the first answer, the empty message, or the rows of the slot. `list` picks
-// the texts (app.sections.*, overview.*Failed, app.empty.*). `count` is the list's length, absent
-// until the first answer (TanStack keeps the data while it refetches).
 defineProps<{
   list: "certificates" | "crls";
-  /** Header texts (message keys); a column's class is also its skeleton cells'. */
   columns: readonly { label: string; class?: string }[];
   count?: number;
   error: unknown;

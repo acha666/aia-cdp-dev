@@ -1,6 +1,3 @@
-// The query layer against a stubbed fetch: the list refresh after an upload (a list request sent
-// before an upload must not overwrite the refresh that follows it), and the retry rule. What the
-// upload sends is in upload-card.test.ts.
 import { useQuery, VueQueryPlugin } from "@tanstack/vue-query";
 import { flushPromises, mount } from "@vue/test-utils";
 import { describe, expect, it } from "vitest";
@@ -10,7 +7,6 @@ import { ApiError } from "@/client/errors";
 import { queries, shouldRetry, useUploadCrl } from "@/client/queries";
 import type { CrlTargetList } from "@/client/types";
 
-/** Mounts `use` in a component with the app's QueryClient (retries without delay). */
 function harness<T>(use: () => T): T {
   let result!: T;
   mount(
@@ -77,7 +73,6 @@ describe("useUploadCrl", () => {
 
 describe("shouldRetry", () => {
   it("retries a 5xx or a failed request once, never a 4xx", () => {
-    // TanStack passes the failures before this one: 0 at the first failure.
     const serverError = new ApiError(503, "internal", "x");
     expect(shouldRetry(0, serverError)).toBe(true);
     expect(shouldRetry(1, serverError)).toBe(false);

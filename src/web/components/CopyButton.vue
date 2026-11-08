@@ -7,9 +7,6 @@ import { toast } from "vue-sonner";
 import { Button } from "@/components/ui/button";
 import { copyText } from "@/utils/clipboard";
 
-// A copy button: puts `text` on the clipboard and reads "Copied" for a moment (else "Copy"); a
-// failure is reported as a toast. Icon-only, with the label as its name and tooltip, unless
-// `labelled` shows the label beside the icon.
 const props = defineProps<{ text: string; labelled?: boolean }>();
 
 const { t } = useI18n();

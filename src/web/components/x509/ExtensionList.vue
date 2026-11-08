@@ -7,8 +7,6 @@ import ExtensionView from "@/components/x509/ExtensionView.vue";
 import { describeExtension } from "@/x509/extensions";
 import type { ExtensionDisplay } from "@/x509/extensions";
 
-// Extensions, decoded for display (x509/extensions.ts), critical ones first, then by name (or
-// OID). Any number of items can be open at once. An empty list reads "No extensions.".
 const props = defineProps<{ extensions: readonly PlainExtension[] }>();
 
 const i18n = useI18n();
@@ -24,7 +22,6 @@ const items = computed(() => {
     }
     return label(a).localeCompare(label(b));
   });
-  // Accordion values must be unique, and an OID can repeat (e.g. in CRL entry extensions).
   return sorted.map((extension, index) => ({
     extension,
     value: `${String(index)}-${extension.oid}`,

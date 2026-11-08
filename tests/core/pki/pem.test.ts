@@ -4,9 +4,6 @@ import { derToPem, pemLength, splitPemBlocks, toDer } from "../../../src/core/pk
 import { fixture, fixtureText } from "../../fixtures/pki.ts";
 import { pkiError } from "../../helpers/pki.ts";
 
-// Upload input (toDer, splitPemBlocks) and the download format (derToPem, pemLength) against
-// OpenSSL's output.
-
 const encode = (value: string) => new TextEncoder().encode(value);
 
 const ROOT_DER = fixture("certs/root-ca.der");
@@ -25,7 +22,6 @@ describe("toDer", () => {
     expect(toDer(fixture("crls/issuing-ca-1/full-01.crlf.pem"), "crl")).toEqual(CRL_DER);
     const wrapped = `\uFEFFBag Attributes\n    subject=Zürich\n${ROOT_PEM}\ntrailing notes\n`;
     expect(toDer(encode(wrapped), "certificate")).toEqual(ROOT_DER);
-    // "0" is 0x30: DER is recognized by its outer length, not by a leading 0x30.
     expect(toDer(encode(`0 is how this note starts\n${ROOT_PEM}`), "certificate")).toEqual(
       ROOT_DER
     );
@@ -40,7 +36,6 @@ describe("toDer", () => {
       "pem_blocks",
     ],
     ["a block without its END line", fixture("invalid/truncated.pem"), "crl", "pem_blocks"],
-    // The first character of the body replaced.
     [
       "a body that is not base64",
       encode(ROOT_PEM.replace(/\n./, "\n*")),
@@ -90,8 +85,6 @@ describe("the download PEM format", () => {
     }
   });
 
-  // A PEM HEAD takes its Content-Length from pemLength. The DER size counts only modulo 48 (one
-  // 64-column line), so 1 to 96 covers every case twice; 1 MiB is a large one.
   it("pemLength equals the length of derToPem's output", () => {
     const bytes = Uint8Array.from({ length: 1024 * 1024 }, (_, index) => (index * 7) % 256);
     const sizes = [...Array.from({ length: 96 }, (_, index) => index + 1), bytes.length];

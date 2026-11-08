@@ -1,6 +1,3 @@
-// The Node entry and the CLI as real processes: `node src/runtime/node.ts` (type stripping) with
-// PORT=0, a temporary data directory, a temporary static directory standing in for dist/web and
-// the admin token in a file, driven by `node src/cli/aia.ts` and fetch over the socket.
 import { spawn } from "node:child_process";
 import type { ChildProcessByStdio } from "node:child_process";
 import { once } from "node:events";
@@ -31,7 +28,6 @@ interface Proc {
   child: ChildProcessByStdio<null, Readable, Readable>;
   stdout: string;
   stderr: string;
-  /** The exit code, once the output has been read to the end. */
   closed: Promise<number | null>;
 }
 
@@ -39,7 +35,6 @@ const running = new Set<Proc>();
 let scratch: string;
 let staticDir: string;
 
-/** Runs a Node script with exactly `env` (plus PATH): no AIA_* leaks in from the caller's shell. */
 function spawnNode(script: string, args: string[], env: Record<string, string>): Proc {
   const child = spawn(process.execPath, [script, ...args], {
     cwd: ROOT,
@@ -62,12 +57,10 @@ function spawnNode(script: string, args: string[], env: Record<string, string>):
   return proc;
 }
 
-/** Every stdout line, parsed (throws on a line that is not JSON). */
 function records(proc: Proc): LogRecord[] {
   return logRecords({ lines: proc.stdout.split("\n").filter((line) => line !== "") });
 }
 
-/** The port of the server's `listening` line; rejects if the process ends first. */
 function listening(proc: Proc): Promise<number> {
   return new Promise((resolve, reject) => {
     proc.child.stdout.on("data", () => {
@@ -95,7 +88,6 @@ afterAll(async () => {
     if (proc.child.exitCode === null && proc.child.signalCode === null) {
       proc.child.kill("SIGKILL");
     }
-    // No data directory is removed under a running server.
     await proc.closed;
   }
   await rm(scratch, { recursive: true, force: true });
@@ -108,7 +100,6 @@ describe("node src/runtime/node.ts driven by the aia CLI", { timeout: TIMEOUT },
   let env: Record<string, string>;
   let dataDir: string;
 
-  /** The CLI to completion; it never prints the token. */
   const aia = async (...args: string[]) => {
     const proc = spawnNode(CLI, args, env);
     const code = await proc.closed;
@@ -218,7 +209,6 @@ describe("node src/runtime/node.ts driven by the aia CLI", { timeout: TIMEOUT },
     expect(await server.closed).toBe(0);
     expect(performance.now() - started).toBeLessThan(5_000);
 
-    // Every stdout line is a JSON log record; the token is never logged.
     const messages = records(server).map((record) => record.msg);
     expect(messages).toContain("request");
     expect(messages.slice(-2)).toEqual(["shutdown", "closed"]);

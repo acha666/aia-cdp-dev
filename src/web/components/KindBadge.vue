@@ -2,7 +2,6 @@
 import { useI18n } from "vue-i18n";
 import { Badge } from "@/components/ui/badge";
 
-// What a resource is, by colour: certificates blue, full CRLs purple, delta CRLs green.
 type Kind = "certificate" | "full" | "delta";
 
 const CLASSES = {

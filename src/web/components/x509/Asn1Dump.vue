@@ -1,8 +1,6 @@
 <script setup lang="ts">
 import type { Asn1Line } from "@/x509/asn1-dump";
 
-// The generic ASN.1 dump of a value that is not decoded, one line per element, indented
-// two spaces per depth.
 defineProps<{ lines: readonly Asn1Line[] }>();
 </script>
 

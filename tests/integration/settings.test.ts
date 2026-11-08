@@ -1,5 +1,3 @@
-// The environment settings of both runtimes, and the `_FILE` variants that the Node
-// entry resolves first.
 import { describe, expect, it } from "vitest";
 import { parseSettings, resolveFileVariants } from "../../src/runtime/settings.ts";
 
@@ -76,7 +74,6 @@ describe("resolveFileVariants", () => {
       ok: true,
       value: { AIA_ADMIN_TOKEN: "s3cret", PORT: "1" },
     });
-    // The newline goes before validation: a file holding only a newline is an empty token.
     const blank = resolveFileVariants({ AIA_UPLOAD_TOKEN_FILE: "/run/blank" }, read);
     expect(blank.ok && parseSettings(blank.value)).toEqual({
       ok: false,

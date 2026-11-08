@@ -1,9 +1,3 @@
-// Admin routes: certificate import and deletion, config.json and CRL target history. Outside the
-// AppType chain (see app.ts); the CLI uses plain fetch.
-//
-// While no admin token is configured, every /admin/* request is a 503 before auth and before the
-// body is read; with one, bearerAuth (constant time) runs before bodyLimit. Failures are thrown, so
-// onError writes every envelope (no-store).
 import { createRoute, OpenAPIHono, z } from "@hono/zod-openapi";
 import type { TypedResponse } from "hono";
 import { bearerAuth } from "hono/bearer-auth";
@@ -38,8 +32,6 @@ const SECURITY_SCHEME = "adminBearer";
 const security = [{ [SECURITY_SCHEME]: [] }];
 const tags = ["admin"];
 
-// Shared responses -------------------------------------------------------------------------------
-
 const ADMIN_FAILURES = {
   400: jsonResponse("Malformed Authorization header, or an invalid request", ErrorResponse),
   401: {
@@ -64,9 +56,6 @@ const ETAG = z.object({
   }),
 });
 
-// POST /admin/certificates -----------------------------------------------------------------------
-
-// The format (DER or one PEM block) is recognized from the bytes; the type only gates 415.
 const certificateMediaType = mediaTypeGate(
   CERTIFICATE_MEDIA_TYPES,
   "Send the certificate as application/pkix-cert, application/x-pem-file or " +
@@ -104,8 +93,6 @@ const importCertificateRoute = createRoute({
   },
 });
 
-// DELETE /admin/certificates/{id} ----------------------------------------------------------------
-
 const deleteCertificateRoute = createRoute({
   method: "delete",
   path: "/admin/certificates/{id}",
@@ -130,8 +117,6 @@ const deleteCertificateRoute = createRoute({
   },
 });
 
-// GET / PUT /admin/config ------------------------------------------------------------------------
-
 const getConfigRoute = createRoute({
   method: "get",
   path: "/admin/config",
@@ -155,12 +140,6 @@ const getConfigRoute = createRoute({
 
 const STRONG_SHA256_ETAG = /^"([0-9a-f]{64})"$/;
 
-/**
- * The precondition of PUT /admin/config: exactly one of `If-Match` or `If-None-Match: *`. Neither,
- * both, or an If-None-Match other than `*` → 428 precondition_required. An If-Match that is not one
- * strong ETag as GET sends it (`W/`, a list, unquoted, `*`) can never match → 412; so can a
- * well-formed one for another state (applyConfig).
- */
 function configPrecondition(headers: Headers): ConfigPrecondition {
   const ifMatch = headers.get("If-Match");
   const ifNoneMatch = headers.get("If-None-Match");
@@ -235,8 +214,6 @@ const applyConfigRoute = createRoute({
   },
 });
 
-// GET /admin/crls/{targetId}/history[/{sha256}] -------------------------------------------------
-
 const getHistoryRoute = createRoute({
   method: "get",
   path: "/admin/crls/{targetId}/history",
@@ -276,21 +253,13 @@ const getHistoryVersionRoute = createRoute({
   },
 });
 
-/**
- * config.json bytes with the HTTP ETag (the SHA-256 of exactly these bytes, never the store's
- * ETag). Typed as the route's JSON body, which the bytes are unless an out-of-band write broke
- * them: GET passes such bytes through as they are.
- */
 function configResponse(bytes: Uint8Array, sha256: string) {
-  // A copy: an adapter may hand out a view into a larger buffer.
   const res = new Response(new Uint8Array(bytes), {
     status: 200,
     headers: { "Content-Type": "application/json", ETag: `"${sha256}"`, ...NO_STORE },
   });
   return res as unknown as TypedResponse<JSONParsed<Config>, 200, "json">;
 }
-
-// Sub-app ----------------------------------------------------------------------------------------
 
 export function adminRoutes(deps: AppDeps) {
   const { log } = deps;
@@ -420,9 +389,6 @@ export function adminRoutes(deps: AppDeps) {
       }
       return configResponse(encodeJson(result.config), result.sha256);
     },
-    // ConfigSchema validates the body before the handler runs: a failure is config_invalid (rule
-    // V1), not the default 400, whatever the precondition. Without a JSON Content-Type the
-    // validator checks `{}`.
     (result) => {
       if (result.success) {
         return undefined;

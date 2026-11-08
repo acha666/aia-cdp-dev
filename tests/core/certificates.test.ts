@@ -43,7 +43,6 @@ describe("importCertificate", () => {
   it("ends two concurrent imports of one certificate as created + unchanged", async () => {
     const base = new MemoryStore();
     const der = fixture(cert("root-ca").der);
-    // The rival import runs to its end between our catalog read and our catalog write.
     let rival: ImportResult | undefined;
     const store: RecordingStore = recordingStore(
       racingStore(base, async () => {
@@ -57,8 +56,6 @@ describe("importCertificate", () => {
       { outcome: "created", id, entry },
     ]);
     expect(await storedCertificates(base)).toEqual({ [id]: entry });
-    // Both wrote create-only: one blob put was already there, and the loser of the catalog write
-    // found the entry when it read the catalog again.
     expect(puts(store).map((put) => [put.key, put.ok])).toEqual([
       [certificateBlobKey(id), true],
       [certificateBlobKey(id), false],

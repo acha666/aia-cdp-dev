@@ -1,5 +1,3 @@
-// Date display helpers. The time zone is set per test through TZ (Node applies a changed TZ to
-// Date and Intl at once); the clock is always passed in.
 import { describe, expect, it, vi } from "vitest";
 import { createAppI18n } from "@/i18n";
 import { formatDate, relativeTime } from "@/utils/dates";
@@ -14,7 +12,6 @@ const DAY = 24 * HOUR;
 
 describe("absolute dates", () => {
   it("labels each date with its own offset, daylight saving time included", () => {
-    // Newfoundland: UTC-3:30 in January, UTC-2:30 in July.
     vi.stubEnv("TZ", "America/St_Johns");
     expect(formatDate("2026-07-04T00:05:07Z", en)).toBe("Jul 03, 2026 21:35:07 (UTC-2:30)");
     expect(formatDate(ISO, en)).toBe("Jan 03, 2026 20:35:07 (UTC-3:30)");
@@ -46,7 +43,6 @@ describe("absolute dates", () => {
 
 describe("relative times", () => {
   const at = Date.parse(ISO);
-  /** The text for a time `seconds` after the clock (before it when negative). */
   const inSeconds = (seconds: number, detailed = false) =>
     relativeTime(ISO, at - seconds * 1000, en, detailed);
 

@@ -1,6 +1,4 @@
 {
-  // Emit-only: compiles the import graphs of src/runtime/node.ts and src/cli/aia.ts to dist/server
-  // for `pnpm start` and the Docker image. Not referenced from tsconfig.json.
   "extends": "./tsconfig.node.json",
   "compilerOptions": {
     "noEmit": false,

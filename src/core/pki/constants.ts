@@ -1,7 +1,3 @@
-// OID names the server writes: SIGNATURE_ALG_NAMES gives the API's details.algorithm, the others
-// the readable names in a signature refusal's log detail. The UI uses them too; its other name
-// tables are in src/web/x509/oid-names.ts.
-
 export const SIGNATURE_ALG_NAMES: Record<string, string> = {
   "1.2.840.113549.1.1.2": "md2WithRSAEncryption",
   "1.2.840.113549.1.1.4": "md5WithRSAEncryption",
