@@ -2,13 +2,9 @@
 import { computed } from "vue";
 import CopyButton from "@/components/CopyButton.vue";
 
-// A hex value (the API's bare digits) in monospace with a copy button. Bytes show as AB:CD and wrap
-// only after a colon (<wbr>, which a selection does not copy). The copy button puts the upper-case
-// digits on the clipboard.
 const props = withDefaults(
   defineProps<{
     value?: string | null;
-    /** A block (flex) instead of an inline element. */
     block?: boolean;
   }>(),
   { value: null, block: false }

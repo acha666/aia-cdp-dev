@@ -3,13 +3,10 @@ import { DownloadIcon } from "@lucide/vue";
 import { computed } from "vue";
 import { Button } from "@/components/ui/button";
 
-// Download links of a certificate or CRL target, from the API's `downloads` (config paths: each DER
-// path is followed by its .pem). The server's list is used as it is: no path is derived here. A
-// resource served at more than one DER path also shows each file name, so the pairs can be told
-// apart.
 const props = defineProps<{ downloads: readonly string[] }>();
 
 const links = computed(() => {
+  // File names tell the links apart only when there are several paths.
   const named = props.downloads.filter((href) => !href.endsWith(".pem")).length > 1;
   return props.downloads.map((href) => ({
     href,
@@ -32,7 +29,6 @@ const links = computed(() => {
       :title="link.href"
       :data-format="link.format"
     >
-      <!-- Flex items: the button's gap separates them, without whitespace in the name. -->
       <DownloadIcon data-icon="inline-start" />{{ link.format
       }}<span
         v-if="link.fileName"

@@ -16,15 +16,6 @@ import { relativeTime } from "@/utils/dates";
 import { computeCertificateStatus } from "@/utils/status";
 import { plainExtension } from "../../core/pki/extensions.ts";
 
-// One certificate, in DetailLayout's frame: header with name, status and downloads; tabs
-// for the overview, the extensions and, when the configuration serves a .pem path, the PEM text.
-// The certificate list gives the catalog's facts, its DER (decoded in the browser) the rest; an id
-// the list does not have is not found. `id` matched the router's pattern, so it is safe to put into
-// the request URL. The tabs may not
-// widen the page (min-w-0: the PEM text and ASN.1 dumps scroll in their own boxes, the tab list
-// scrolls sideways on a phone, never down: the triggers' hidden line-variant ::after reaches below
-// it); the panels are tab stops (Reka), so they show a focus ring. The tabs are keyed by `id`:
-// another certificate (a link from a target page) starts on its overview.
 const props = defineProps<{ id: string }>();
 
 const i18n = useI18n();
@@ -42,7 +33,6 @@ function refetch() {
   void blob.refetch();
 }
 
-// The config label, else the subject CN; undefined until the DER is decoded too.
 const name = computed(() => {
   const item = data.value;
   if (item === undefined || blob.data.value === undefined) {
@@ -58,10 +48,6 @@ const state = computed(() => {
     : null;
 });
 
-/**
- * Time to notAfter (or since it, once expired) next to the status badge; to notBefore while not
- * yet valid, as on CrlTargetPage.
- */
 const statusDetail = computed(() => {
   const summary = data.value?.summary;
   if (!summary || state.value === "unknown") {
@@ -109,6 +95,7 @@ const PANEL = "rounded-md pt-2 focus-visible:ring-3 focus-visible:ring-ring/50";
         <DownloadLinks :downloads="data.downloads" />
       </header>
 
+      <!-- Keyed by id, so another certificate opens on its overview tab. -->
       <Tabs :key="id" default-value="overview" class="min-w-0">
         <TabsList class="max-w-full justify-start overflow-x-auto overflow-y-hidden">
           <TabsTrigger value="overview">{{ t("details.tabs.overview") }}</TabsTrigger>
@@ -121,7 +108,6 @@ const PANEL = "rounded-md pt-2 focus-visible:ring-3 focus-visible:ring-ring/50";
           <CertificateOverview :certificate="data" :decoded="blob.data.value" />
         </TabsContent>
         <TabsContent value="extensions" :class="PANEL">
-          <!-- The extensions' accordion headings are h3. -->
           <h2 class="sr-only">{{ t("details.certificate.extensions") }}</h2>
           <ExtensionList :extensions="extensions" />
         </TabsContent>

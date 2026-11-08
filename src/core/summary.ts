@@ -1,5 +1,9 @@
-// Catalog summaries. A summary is always built whole and replaces the previous one (no merge, no
-// summary version), so there is one implementation of each summary.
+/**
+ * Extracts the catalog summaries of certificates and CRLs.
+ *
+ * @packageDocumentation
+ */
+
 import type {
   Certificate,
   CertificateRevocationList,
@@ -19,13 +23,13 @@ import {
 } from "./pki/extensions.ts";
 import type { WholeCrl } from "./pki/parsers.ts";
 
-/** AD CS Next CRL Publish: when the CA will publish its next CRL (before nextUpdate). */
+/** Microsoft's Next CRL Publish extension, written by AD CS. */
 export const NEXT_CRL_PUBLISH_OID = "1.3.6.1.4.1.311.21.4";
 
 const findExtension = (extensions: Extension[] | undefined, oid: string) =>
   extensions?.find((extension) => extension.extnID === oid);
 
-/** `read(value)` of the extension, with whatever it throws reported as a malformed `name`. */
+/** Decodes an extension value, reporting failures as `extension_value` parse errors. */
 function readExtension<T>(
   kind: PkiKind,
   name: string,
@@ -41,11 +45,7 @@ function readExtension<T>(
   }
 }
 
-/**
- * keyIdentifier of the Authority Key Identifier in `extensions` (a certificate's or a CRL's),
- * lowercase hex; undefined without the extension or without a keyIdentifier. A malformed one,
- * trailing bytes included, is a PkiParseError of `kind`.
- */
+/** Returns the hex keyIdentifier of the Authority Key Identifier extension, if present. */
 export function authorityKeyId(
   kind: PkiKind,
   extensions: Extension[] | undefined
@@ -70,8 +70,6 @@ function subjectKeyId(cert: Certificate): string | undefined {
   );
 }
 
-// A malformed SKI / AKI rejects the certificate, never skipped silently. An empty key id is
-// rejected too: it cannot identify a key, and the catalog format requires hex.
 function nonEmptyKeyId(name: string, keyId: string | undefined): string | null {
   if (keyId === "") {
     throw new PkiParseError("certificate", "extension_value", `Empty ${name} key identifier`);
@@ -79,7 +77,7 @@ function nonEmptyKeyId(name: string, keyId: string | undefined): string | null {
   return keyId ?? null;
 }
 
-/** The first string CN in the attributes PKIjs has already decoded. */
+/** Returns the first common name that is a string. */
 function commonName(name: RelativeDistinguishedNames): string | null {
   for (const attribute of name.typesAndValues) {
     const text = attribute.type === "2.5.4.3" ? stringOf(attribute.value) : undefined;
@@ -90,11 +88,6 @@ function commonName(name: RelativeDistinguishedNames): string | null {
   return null;
 }
 
-/**
- * Summary of a certificate parsed by parseCertificate (so its times are valid RFC 5280 times) from
- * `der`. Throws PkiParseError (kind "certificate", reason "extension_value") when the Subject or
- * Authority Key Identifier extension is present but malformed.
- */
 export async function buildCertificateSummary(
   cert: Certificate,
   der: Uint8Array
@@ -114,17 +107,12 @@ export async function buildCertificateSummary(
   };
 }
 
-/** The CRL Number or Delta CRL Indicator `oid` of `crl`; undefined without it. */
 function crlNumber(crl: CertificateRevocationList, oid: string, name: string): bigint | undefined {
   const extension = findExtension(crl.crlExtensions?.extensions, oid);
   return extension && readExtension("crl", name, extension, readCrlNumber);
 }
 
-/**
- * The AD CS Next CRL Publish time: exactly one UTCTime / GeneralizedTime in the RFC 5280 form (AD
- * CS writes a UTCTime). Undefined without the extension, and also for a value that cannot be read
- * as such: the time only informs the CRL status, so it does not reject the CRL.
- */
+/** Reads Next CRL Publish; it is informational, so an unreadable value is ignored. */
 function nextCrlPublish(crl: CertificateRevocationList): Date | undefined {
   const extension = findExtension(crl.crlExtensions?.extensions, NEXT_CRL_PUBLISH_OID);
   if (!extension) {
@@ -137,15 +125,9 @@ function nextCrlPublish(crl: CertificateRevocationList): Date | undefined {
   }
 }
 
-/** The fields of a CRL summary that the CRL's own fields and extensions give. */
+/** The summary fields that the header alone provides. */
 export type CrlFields = Omit<CrlSummary, "revokedCount" | "sha1">;
 
-/**
- * The CrlFields of a CRL from parseCRL or parseCrlHeader (so its times are valid RFC 5280 times).
- * Throws PkiParseError (kind "crl", reason "extension_value") when the CRL Number or the Delta CRL
- * Indicator (exactly one INTEGER ≥ 0, not longer than MAX_CRL_NUMBER_OCTETS) is present but
- * malformed. A Next CRL Publish that cannot be read is null, like a missing one.
- */
 export function readCrlFields(crl: CertificateRevocationList): CrlFields {
   const number = crlNumber(crl, "2.5.29.20", "CRL Number");
   const base = crlNumber(crl, "2.5.29.27", "Delta CRL Indicator");
@@ -158,10 +140,6 @@ export function readCrlFields(crl: CertificateRevocationList): CrlFields {
   };
 }
 
-/**
- * Summary of a CRL parsed by parseCRL from `der`, in the catalog format of `current.summary`.
- * Throws like readCrlFields.
- */
 export async function buildCrlSummary(crl: WholeCrl, der: Uint8Array): Promise<CrlSummary> {
   return {
     ...readCrlFields(crl),

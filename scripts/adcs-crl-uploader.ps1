@@ -1,63 +1,41 @@
 #Requires -Version 7.0
 <#
 .SYNOPSIS
-    Publishes the CRLs that an AD CS CA writes to SourceDir through an aia-cdp upload route.
+Uploads the CRLs that an AD CS CA writes to a folder to the aia-cdp service.
 
 .DESCRIPTION
-    Every *.crl, *.dcrl and *.pem file directly in SourceDir (X.pem is skipped when X exists) is
-    sent, oldest LastWriteTimeUtc first, as the raw body of POST /api/v1/crls: DER (first byte
-    0x30) as application/pkix-crl, a PEM file (with an X509 CRL block) as application/x-pem-file.
-    The service finds the target from the CRL's issuer and kind and answers created, updated or
-    unchanged, which all succeed, or an error code, which fails that file.
-
-    A ledger (LedgerPath: file path -> SHA-256 of the bytes last accepted from that path, for one
-    UploadUri) skips files whose bytes the service already accepted, so a run uploads only what
-    changed. A file that is not in the ledger and comes back stale_crl is a failure: the CA
-    produced a CRL older than the one the service publishes.
-
-    One file failing does not stop the others. Exit code 0 when no file failed, also when there
-    are no files; 1 when a file failed or the run could not start (missing SourceDir, a missing,
-    empty or malformed token file, the token over http:// without -AllowInsecureHttp).
-
-    Meant for a scheduled task on the CA: Microsoft-Windows-CertificationAuthority events 68, 69
-    and 70 plus a periodic catch-up run, MultipleInstances IgnoreNew (docs/operations.md).
+Sends every .crl, .dcrl and .pem file in SourceDir to POST /api/v1/crls, oldest first, and
+records each accepted file's SHA-256 in a ledger so that unchanged files are not sent again.
+A .pem file is skipped when a file with its name minus .pem exists. Run it after the CA
+publishes CRLs, for example from a scheduled task. Exits 1 if any file failed.
 
 .PARAMETER UploadUri
-    The upload route: https://<host>/api/v1/crls.
+The upload endpoint. The ledger is reset when it changes.
 
 .PARAMETER UploadTokenFile
-    File holding the service's AIA_UPLOAD_TOKEN (surrounding whitespace is ignored). Without it
-    no Authorization header is sent, which the service accepts only while AIA_UPLOAD_TOKEN is
-    unset. The token never appears in the log or on the command line; keep the file readable by
-    the task's account only (icacls).
+A file holding the upload token, if the service requires one.
 
 .PARAMETER SourceDir
-    The directory the CA publishes its CRLs to. Not searched recursively.
+The folder the CA publishes CRLs to.
 
 .PARAMETER LogPath
-    Log file, appended to (UTF-8).
+The log file; every line is also written to the console.
 
 .PARAMETER LedgerPath
-    JSON { "uploadUri": <UploadUri, normalized>, "files": { <file path>: <SHA-256, lowercase
-    hex, of the accepted bytes> } }. A missing or unreadable ledger, or one written for another
-    UploadUri, counts as empty: every file is sent again, those the service already has come back
-    unchanged, and the next success rewrites it for this UploadUri. After the service at the same
-    UploadUri is restored or rolled back, delete the ledger (docs/operations.md).
+The JSON file of accepted files. Delete it to upload everything again.
 
 .PARAMETER TimeoutSec
-    Timeout of one upload request, in seconds.
+The timeout of each upload.
 
 .PARAMETER AllowInsecureHttp
-    Send the token to an http:// UploadUri as well (tests only).
+Allows sending the token over http://, for tests.
 
 .PARAMETER UploadIntervalMs
-    Pause between two uploads. The service's R2 store takes about one write per second to the
-    catalog object, so a full and a delta CRL published together must not arrive back to back.
+The pause between uploads.
 
 .EXAMPLE
-    pwsh.exe -NoProfile -NonInteractive -File "C:\Program Files\aia-cdp\adcs-crl-uploader.ps1" -UploadUri https://pki.example.com/api/v1/crls -UploadTokenFile C:\ProgramData\PKI\crl-uploader\upload-token.txt
+pwsh -File adcs-crl-uploader.ps1 -UploadUri https://pki.example.com/api/v1/crls -UploadTokenFile C:\ProgramData\PKI\crl-uploader\token.txt
 #>
-# No positional parameters: an unquoted path with a space must not bind its tail to another one.
 [CmdletBinding(PositionalBinding = $false)]
 param(
     [ValidateNotNullOrEmpty()][string]$UploadUri = 'https://aia.example.com/api/v1/crls',
@@ -73,17 +51,14 @@ param(
 $ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue'
 
-# The CA may still be writing a file when its event fires: reads are retried this often.
 $ReadAttempts = 5
 $ReadRetryMs = 1000
 
-# Logging: one line per event, to the log file and the console. Never throws.
 function Write-Log {
     param(
         [ValidateSet('INFO', 'WARN', 'ERROR', 'SUCCESS')][string]$Level = 'INFO',
         [Parameter(Mandatory)][string]$Message
     )
-    # Invariant: the current culture's time separator is not always ':' (fi-FI writes 07.50.35).
     $ts = (Get-Date).ToString('yyyy-MM-dd HH:mm:ss.fffK', [cultureinfo]::InvariantCulture)
     $line = "[$ts][$Level] $Message"
     try { New-Item -ItemType Directory -Path (Split-Path -Parent $LogPath) -Force | Out-Null } catch {}
@@ -97,9 +72,6 @@ function Write-Log {
     try { Write-Host $line -ForegroundColor $color } catch {}
 }
 
-# An exception's message followed by its inner exceptions' (one the previous message already
-# quotes is dropped): a TLS or socket failure is named only by an inner one ("The SSL connection
-# could not be established, see inner exception."), and upload.log is all a scheduled run leaves.
 function Format-Exception {
     param([Parameter(Mandatory)][System.Exception]$Exception)
     $messages = [System.Collections.Generic.List[string]]::new()
@@ -111,10 +83,7 @@ function Format-Exception {
     $messages -join ' -> '
 }
 
-# Startup ----------------------------------------------------------------------------------------
 
-# The upload token as a SecureString, or $null without -UploadTokenFile. Exits 1 when the file is
-# missing, unreadable, empty or holds something a bearer token cannot be. Messages never quote it.
 function Read-UploadToken {
     if (-not $UploadTokenFile) {
         return $null
@@ -135,8 +104,6 @@ function Read-UploadToken {
         Write-Log ERROR "Token file is empty: $UploadTokenFile"
         exit 1
     }
-    # RFC 6750 b64token, as the service requires of AIA_UPLOAD_TOKEN. Anything else could never
-    # authenticate, and an invalid header value would be quoted in the request's error message.
     if ($plain -notmatch '^[A-Za-z0-9._~+/-]+=*$') {
         Write-Log ERROR "Token file holds characters a bearer token cannot have: $UploadTokenFile"
         exit 1
@@ -144,11 +111,7 @@ function Read-UploadToken {
     ConvertTo-SecureString -String $plain -AsPlainText -Force
 }
 
-# Ledger -----------------------------------------------------------------------------------------
 
-# File path -> SHA-256 of the bytes the service at $Uri accepted. Paths compare case-insensitively,
-# like Windows paths (a hashtable does). Entries recorded for another URI say nothing about this
-# service (staging -> production, a switch-over, Workers <-> Docker): that ledger counts as empty.
 function Read-Ledger {
     param([Parameter(Mandatory)][string]$Uri)
     $ledger = @{}
@@ -181,7 +144,6 @@ function Read-Ledger {
     $ledger
 }
 
-# Written for $Uri through a temporary file and a rename, so a crash never leaves half a ledger.
 function Save-Ledger {
     param([Parameter(Mandatory)][hashtable]$Ledger, [Parameter(Mandatory)][string]$Uri)
     $sorted = [ordered]@{}
@@ -198,9 +160,7 @@ function Save-Ledger {
     Move-Item -LiteralPath $temp -Destination $LedgerPath -Force
 }
 
-# Files ------------------------------------------------------------------------------------------
 
-# The file's bytes, read with FileShare.Read (no writer may hold it), retried on IOException.
 function Read-CrlFile {
     param([Parameter(Mandatory)][string]$Path)
     for ($attempt = 1; ; $attempt++) {
@@ -210,7 +170,6 @@ function Read-CrlFile {
             try {
                 $buffer = [System.IO.MemoryStream]::new()
                 $stream.CopyTo($buffer)
-                # The comma keeps the pipeline from unrolling the array byte by byte.
                 return , $buffer.ToArray()
             }
             finally {
@@ -228,7 +187,6 @@ function Read-CrlFile {
     }
 }
 
-# The upload media type from the bytes, as the service recognizes them; $null for neither.
 function Get-CrlMediaType {
     param([Parameter(Mandatory)][AllowEmptyCollection()][byte[]]$Bytes)
     if ($Bytes.Length -gt 0 -and $Bytes[0] -eq 0x30) {
@@ -240,10 +198,7 @@ function Get-CrlMediaType {
     $null
 }
 
-# Upload -----------------------------------------------------------------------------------------
 
-# One POST. Returns the status and the parsed body (an object for JSON, else text); throws on
-# network errors and timeouts.
 function Send-Crl {
     param(
         [Parameter(Mandatory)][byte[]]$Bytes,
@@ -262,14 +217,12 @@ function Send-Crl {
     if ($Token) {
         $request.Authentication = 'Bearer'
         $request.Token = $Token
-        # Startup refused http:// with a token unless -AllowInsecureHttp.
         $request.AllowUnencryptedAuthentication = $AllowInsecureHttp.IsPresent
     }
     $body = Invoke-RestMethod @request
     [pscustomobject]@{ Status = $status; Body = $body }
 }
 
-# Invoke-RestMethod turns ISO time strings into DateTime values; log them as ISO UTC again.
 function Format-Time {
     param($Value)
     if ($Value -is [datetime]) {
@@ -286,7 +239,6 @@ function Format-Details {
     ' ' + ($Details | ConvertTo-Json -Compress -Depth 5)
 }
 
-# Main -------------------------------------------------------------------------------------------
 
 try {
     Write-Log INFO ("Startup: UploadUri={0}; SourceDir={1}; LedgerPath={2}; UploadTokenFile={3}" -f
@@ -318,7 +270,6 @@ try {
     $names = [System.Collections.Generic.HashSet[string]]::new(
         [string[]]$files.Name, [System.StringComparer]::OrdinalIgnoreCase)
 
-    # The ledger is for this URI as the service sees it: scheme and host lowercase, no default port.
     $ledgerUri = $uri.AbsoluteUri
     $ledger = Read-Ledger -Uri $ledgerUri
     $counts = [ordered]@{ Created = 0; Updated = 0; Unchanged = 0; Skipped = 0; Failed = 0 }
@@ -362,7 +313,6 @@ try {
                     Save-Ledger -Ledger $ledger -Uri $ledgerUri
                 }
                 catch {
-                    # Not recorded: the next run sends the file again and gets unchanged.
                     $ledger.Remove($file.FullName)
                     Write-Log ERROR ("{0}: {1} on the service, but the ledger could not be written: {2}" -f
                         $file.Name, $body.outcome, (Format-Exception $_.Exception))

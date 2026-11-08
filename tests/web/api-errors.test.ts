@@ -1,6 +1,3 @@
-// The web client's error handling: unwrap and the hc client's fetch. Malformed responses and
-// HTTP errors fail with a code instead of turning into an empty success. The fetch is stubbed; the
-// bodies are the v1 envelope as src/http/errors.ts writes it.
 import { describe, expect, it } from "vitest";
 import { stubApi, targetItems } from "./helpers";
 import { api } from "@/client/api";
@@ -42,7 +39,6 @@ describe("unwrap", () => {
       details: { reason: "der" },
     });
 
-    // A code this client does not know is kept.
     await expect(
       unwrap(Response.json({ error: { code: "brand_new", message: "Newer" } }, { status: 409 }))
     ).rejects.toMatchObject({ name: "ApiError", code: "brand_new", status: 409 });
@@ -53,7 +49,6 @@ describe("unwrap", () => {
     ["JSON that is not the envelope", Response.json({ status: "unhealthy" }, { status: 503 })],
     ["an envelope without a message", Response.json({ error: { code: "x" } }, { status: 400 })],
     ["HTML with 200", new Response("<!doctype html><title>UI</title>", { status: 200 })],
-    // An empty success is no success: not null, not undefined.
     ["an empty body with 200", new Response(null, { status: 200 })],
   ])("throws invalid_response for %s", async (_name, response) => {
     await expect(unwrap(response)).rejects.toMatchObject({
@@ -63,7 +58,6 @@ describe("unwrap", () => {
     });
   });
 
-  // The connection dropped after the headers: no response to speak of, as when fetch rejects.
   it("throws network with the cause when the body cannot be read", async () => {
     const failure = new TypeError("terminated");
     await expect(

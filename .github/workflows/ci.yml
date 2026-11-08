@@ -1,6 +1,3 @@
-# Each job only installs dependencies and runs `pnpm run ci:<job>`: the package.json scripts are the
-# definition of CI and run the same way locally. pnpm/setup takes Node from .nvmrc and pnpm from
-# devEngines.packageManager, then runs `pnpm install` (frozen lockfile in CI).
 name: CI
 
 on:

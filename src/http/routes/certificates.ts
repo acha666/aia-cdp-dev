@@ -1,8 +1,3 @@
-// Public reads: the certificate list and the blobs the UI decodes. Each request reads config.json
-// and catalog.json once. The SHA-256 is never a store key (an archive-style one is a 400).
-//
-// Failures are thrown (a blob the catalog names but the store lacks is a 500), so onError writes
-// every envelope (no-store). HEAD is Hono's automatic HEAD of each GET.
 import { createRoute, OpenAPIHono } from "@hono/zod-openapi";
 import { readState } from "../../core/catalog.ts";
 import { IMMUTABLE } from "../../core/resources.ts";
@@ -60,6 +55,7 @@ const getBlobRoute = createRoute({
   },
 });
 
+/** The public certificate list and the blob endpoint the web UI decodes. */
 export function certificateRoutes(deps: AppDeps) {
   return new OpenAPIHono()
     .openapi(listCertificatesRoute, async (c) => {

@@ -7,9 +7,6 @@ import { parseCertificate, parseCRL } from "../../../src/core/pki/parsers.ts";
 import { verifyCrlSignature } from "../../../src/core/pki/verify.ts";
 import { cert, fixture } from "../../fixtures/pki.ts";
 
-// verifyCrlSignature. The allow-list cases sign with keys made here: the fixtures cannot cover
-// every algorithm (no P-521 CA, no ECDSA with SHA-1 or SHA-512).
-
 const FULL_01 = "crls/issuing-ca-1/full-01.der";
 const ROOT_FULL_01 = "crls/root-ca/full-01.der";
 
@@ -17,7 +14,6 @@ const crlOf = (file: string) => parseCRL(fixture(file));
 const spkiOf = (name: string) => parseCertificate(fixture(cert(name).der)).subjectPublicKeyInfo;
 const engine = pkijs.getCrypto(true);
 
-/** Records whether the cryptography ran (it must not for a refused algorithm, key or encoding). */
 const cryptoSpy = () => vi.spyOn(engine, "verifyWithPublicKey");
 
 const algorithmId = (id: string, params?: asn1.BaseBlock) =>
@@ -40,7 +36,6 @@ describe("allow-list", () => {
     ["1.2.840.10045.4.3.4", "ecdsa", "SHA-512", "P-521"],
   ];
 
-  /** full-01 re-signed: `signatureAlgorithm` in both places, `sign` over the new TBS. */
   async function resigned(
     signatureAlgorithm: pkijs.AlgorithmIdentifier,
     sign: (tbs: Uint8Array<ArrayBuffer>) => Promise<ArrayBuffer>
@@ -110,7 +105,6 @@ describe("allow-list", () => {
           crypto.subtle.sign(pss ? { name, saltLength: 32 } : { name }, key, tbs)
         );
       }
-      // Through the strict parser, as an upload would come.
       expect(await verifyCrlSignature(parseCRL(der), spki)).toEqual({ ok: true });
 
       const tampered = parseCRL(der);
@@ -172,14 +166,11 @@ describe("refusals before the cryptography", () => {
     });
   });
 
-  // PKIjs reads ECDSA-Sig-Value leniently: it ignores trailing bytes, takes ENUMERATED for INTEGER
-  // and INTEGERs as unsigned octets. Each variant verifies with PKIjs alone, so one signature would have several encodings.
   const variants = (): [string, Uint8Array][] => {
     const bytes = crlOf(ROOT_FULL_01).signatureValue.valueBlock.valueHexView;
     const [r, s] = (asn1.fromBER(bytes).result as asn1.Sequence).valueBlock.value.map((part) => [
       ...(part as asn1.Integer).valueBlock.valueHexView,
     ]);
-    // r with its 00 pad dropped (negative), or with a redundant 00 added.
     const nonDer = r![0] === 0 ? r!.slice(1) : [0, ...r!];
     const body = [0x02, nonDer.length, ...nonDer, 0x02, s!.length, ...s!];
     const enumerated = [0x0a, r!.length, ...r!, 0x0a, s!.length, ...s!];

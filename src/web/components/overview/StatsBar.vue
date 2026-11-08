@@ -8,10 +8,6 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useClock } from "@/composables/useClock";
 import { computeTargetStatus, needsAttention } from "@/utils/status";
 
-// The overview's counts, counted here from the two lists: certificates, targets and
-// published targets by kind, the revocations in the published full CRLs, and "needs attention"
-// with the page's clock and the badges' rule (stale, expired or unknown), so the number always
-// matches the badges in the tables below.
 const certificates = useQuery(queries.certificates());
 const targets = useQuery(queries.crls());
 const now = useClock();
@@ -37,6 +33,7 @@ const tiles = computed(() => {
   const configured = count(targetList);
   const publishedList = targetList.filter((target) => target.current !== null);
   const published = count(publishedList);
+  // Delta CRLs repeat entries of their base CRL, so only full CRLs are counted.
   const fullCrls = publishedList.filter((target) => target.kind === "full");
   const revocations = fullCrls.reduce(
     (sum, target) => sum + (target.current?.summary.revokedCount ?? 0),

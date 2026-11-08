@@ -1,8 +1,3 @@
-// The browser's X.509 display (src/web/x509): the extension decoders on the AD CS style fixtures,
-// then on one value built in the test for each decoder the fixtures do not reach, values that are
-// shown although an upload would reject them, values that are errors, names and algorithms. A
-// decoded extension is compared as its rows, "label: value" (lines joined with " | ", tags with
-// ", ", sections apart by "---"); how each value kind looks is in components.test.ts.
 import * as asn1 from "asn1js";
 import * as pkijs from "pkijs";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -21,13 +16,11 @@ import { readName } from "@/x509/names";
 
 const i18n = createAppI18n("en").global;
 
-// Times show in the browser's time zone.
 beforeEach(() => vi.stubEnv("TZ", "UTC"));
 
 const certificate = (name: string) => parseCertificate(fixtureDer(`certs/${name}.der`));
 const crl = (file: string) => parseCRL(fixtureDer(file));
 
-/** The extension as rows, after asserting that it decoded. */
 function rowsOf(display: ExtensionDisplay): string[] {
   expect([display.status, display.error]).toEqual(["parsed", undefined]);
   const text = (value: unknown): string => {
@@ -49,7 +42,6 @@ function rowsOf(display: ExtensionDisplay): string[] {
 
 const describe1 = (extension: PlainExtension) => describeExtension(extension, i18n);
 
-/** The display of the extension `oid` among `extensions`. */
 function byOid(extensions: pkijs.Extension[] | PlainExtension[] | undefined, oid: string) {
   const found = extensions?.find((extension) => extension.extnID === oid);
   expect(found, `extension ${oid} present`).toBeDefined();
@@ -63,7 +55,6 @@ describe("the fixtures", () => {
     const displays = (issuing.extensions ?? []).map((extension) =>
       describe1(plainExtension(extension))
     );
-    // The AD CS SubCA template shape, in order; basicConstraints and keyUsage are critical.
     expect(displays.map((display) => [display.name, display.status, display.critical])).toEqual([
       ["Subject Key Identifier", "parsed", false],
       ["Authority Key Identifier", "parsed", false],
@@ -88,7 +79,6 @@ describe("the fixtures", () => {
       "CN=Example Root CA (ECC P-384),O=Example PKI,C=US"
     );
     expect(readName(issuing.subject).rdns[0]?.[0]?.encoding).toBe("printableString");
-    // Signed by root-ca: ECDSA, whose AlgorithmIdentifier has no parameters (RFC 5758 §3.2).
     expect(formatAlgorithm(issuing.signatureAlgorithm, SIGNATURE_ALG_NAMES, i18n)).toBe(
       "ecdsa-with-SHA384"
     );
@@ -97,7 +87,6 @@ describe("the fixtures", () => {
 
   it("decodes the extensions of crls/issuing-ca-1/full-adcs and delta-adcs", () => {
     const full = crl("crls/issuing-ca-1/full-adcs.der").crlExtensions?.extensions;
-    // In the order of the file: openssl ca appends the CRL Number last.
     expect(full?.map((extension) => describe1(plainExtension(extension)).name)).toEqual([
       "Authority Key Identifier",
       "CA Version",
@@ -139,7 +128,6 @@ describe("the fixtures", () => {
   });
 });
 
-// Builders of the values below.
 const seq = (...value: asn1.BaseBlock[]) => new asn1.Sequence({ value });
 const utf8 = (value: string) => new asn1.Utf8String({ value });
 const int = (value: number) => new asn1.Integer({ value });
@@ -150,37 +138,30 @@ const bits = (byte: number, unusedBits: number) =>
   new asn1.BitString({ valueHex: Uint8Array.of(byte).buffer, unusedBits });
 const context = (tagNumber: number, ...value: asn1.BaseBlock[]) =>
   new asn1.Constructed({ idBlock: { tagClass: 3, tagNumber }, value });
-/** A context-specific primitive: an IMPLICIT [n] value's contents octets. */
 const implicit = (tagNumber: number, ...bytes: number[]) =>
   new asn1.Primitive({
     idBlock: { tagClass: 3, tagNumber },
     valueHex: Uint8Array.from(bytes).buffer,
   });
 const zeros = (count: number) => new Array<number>(count).fill(0);
-/** An extension value given as its octets, for encodings asn1js would not write. */
 const der = (...bytes: number[]) => ({ toBER: () => Uint8Array.from(bytes).buffer });
 const uri = (value: string) => new pkijs.GeneralName({ type: 6, value });
 const ip = (...bytes: number[]) => new pkijs.GeneralName({ type: 7, value: octets(bytes) });
-/** A GeneralName inside a hand-built SEQUENCE (PKIjs types toSchema() as a union). */
 const block = (name: pkijs.GeneralName) => name.toSchema() as asn1.BaseBlock;
 
 const SCT_LOG_ID = Uint8Array.from({ length: 32 }, (_, index) => index);
 const SCT_SIGNATURE = [0x30, 0x06, 0x02, 0x01, 0x01, 0x02, 0x01, 0x02];
 const SCT_TIME = new Date("2026-01-02T03:04:05.678Z");
 
-/** A list of one v1 SCT (RFC 6962 §3.2–3.3) by hand: PKIjs's encoder pads it with zero octets. */
 function sctList(missing = 0): asn1.OctetString {
   const ms = BigInt(SCT_TIME.getTime());
   const stamp = Array.from({ length: 8 }, (_, at) => Number((ms >> BigInt(56 - 8 * at)) & 0xffn));
-  // v1, log id, timestamp, no extensions, sha256 / ecdsa, signature.
   const sct = [0, ...SCT_LOG_ID, ...stamp, 0, 0, 4, 3, 0, SCT_SIGNATURE.length, ...SCT_SIGNATURE];
-  // `missing` octets cut from the end, with the SCT's own length left as it was.
   const kept = sct.slice(0, sct.length - missing);
   return octets([0, kept.length + 2, 0, sct.length, ...kept]);
 }
 
 const qcType = seq(objectId("0.4.0.1862.1.6.1"));
-// PKIjs types the QCStatements constructor with QCStatement's parameters.
 const qcStatements = new pkijs.QCStatements();
 qcStatements.values = [
   new pkijs.QCStatement({ id: "0.4.0.1862.1.1" }),
@@ -199,7 +180,6 @@ const policies = (policyIdentifier: string, policyQualifiers?: pkijs.PolicyQuali
 
 const notice = new asn1.IA5String({ value: "not a UserNotice" });
 
-/** What the tables below hold: an extension value, or its octets as `der` gives them. */
 interface Encodable {
   toBER(): ArrayBuffer;
 }
@@ -225,7 +205,6 @@ const DECODED: [type: string, oid: string, value: Encodable, rows: string[]][] =
       "Authority certificate serial: 11",
     ],
   ],
-  // Read from the contents octets: asn1js's valueDec is 0 from four contents octets on.
   [
     "basicConstraints",
     "2.5.29.19",
@@ -246,7 +225,6 @@ const DECODED: [type: string, oid: string, value: Encodable, rows: string[]][] =
       "Names: userPrincipalName: user@ad.example | RID: 1.2.3.4 | DirName: CN=Indirect\\, CA | IP: 192.0.2.1 | IP: 2001:db8::1",
     ],
   ],
-  // No text form: the DER is kept. PKIjs cannot read either.
   [
     "subjectAltName",
     "2.5.29.17",
@@ -262,7 +240,6 @@ const DECODED: [type: string, oid: string, value: Encodable, rows: string[]][] =
   [
     "nameConstraints",
     "2.5.29.30",
-    // RFC 5280 DER (IMPLICIT [0] minimum, [1] maximum), built by hand: PKIjs tags them EXPLICIT.
     seq(
       context(
         0,
@@ -344,7 +321,6 @@ const DECODED: [type: string, oid: string, value: Encodable, rows: string[]][] =
       "User notice: Example Org (1, 2)\nRead the CPS",
     ],
   ],
-  // A qualifier that does not decode keeps only its DER.
   [
     "certificatePolicies",
     "2.5.29.32",
@@ -360,7 +336,6 @@ const DECODED: [type: string, oid: string, value: Encodable, rows: string[]][] =
   [
     "cRLDistributionPoints",
     "2.5.29.31",
-    // RFC 5280 DER, built by hand: PKIjs writes [1] reasons without the unused-bits octet.
     seq(
       seq(
         context(0, context(0, block(uri("http://crl.example/a.crl")))),
@@ -374,7 +349,6 @@ const DECODED: [type: string, oid: string, value: Encodable, rows: string[]][] =
       "CRL issuer: DNS: crl-issuer.example",
     ],
   ],
-  // nameRelativeToCRLIssuer [1] IMPLICIT RelativeDistinguishedName, which PKIjs cannot read.
   [
     "freshestCRL",
     "2.5.29.46",
@@ -417,7 +391,6 @@ const DECODED: [type: string, oid: string, value: Encodable, rows: string[]][] =
       "Signature: sha256/ecdsa",
     ],
   ],
-  // dateOfBirth and countryOfCitizenship (RFC 3739 §3.2.2), and a title.
   [
     "subjectDirectoryAttributes",
     "2.5.29.9",
@@ -474,7 +447,6 @@ describe("decoders on values built in the test", () => {
   it.each(DECODED)("decodes %s (%s)", (_type, oid, value, rows) => {
     const display = describe1(plain(oid, value));
     expect(rowsOf(display)).toEqual(rows);
-    // A decoded extension needs no dump.
     expect(display.asn1).toBeUndefined();
   });
 
@@ -485,7 +457,6 @@ describe("decoders on values built in the test", () => {
         seq(
           objectId("2.5.29.20"),
           utf8("hello"),
-          // Exact: asn1js's valueDec is 0 from four contents octets on.
           asn1.Integer.fromBigInt(2n ** 100n + 123n),
           new asn1.Enumerated({ value: 2 ** 31 })
         )
@@ -543,9 +514,7 @@ describe("decoders on values built in the test", () => {
   });
 
   it.each([
-    // PKIjs yields an SCT of 1970 with an empty log id from truncated TLS data.
     ["a truncated SCT list", "1.3.6.1.4.1.11129.2.4.2", octets([0, 2, 9, 9])],
-    // PKIjs reads the short last SCT, its signature cut, as if the octets were there.
     ["an SCT longer than the list", "1.3.6.1.4.1.11129.2.4.2", sctList(2)],
     ["an empty SCT list (1..2^16-1)", "1.3.6.1.4.1.11129.2.4.2", octets([0, 0])],
     [
@@ -556,9 +525,7 @@ describe("decoders on values built in the test", () => {
         asn1.Integer.fromBigInt(BigInt(Number.MAX_SAFE_INTEGER) + 1n)
       ),
     ],
-    // Do not silently display a prefix of an extension value.
     ["trailing bytes after the value", "2.5.29.19", der(0x30, 0x00, 0x05, 0x00)],
-    // PKIjs writes and reads [1] reasons without the unused-bits octet: 0x60 is no such count.
     ["reasons without the unused-bits octet", "2.5.29.31", seq(seq(implicit(1, 0x60)))],
     [
       "an empty IMPLICIT INTEGER (GeneralSubtree minimum)",
@@ -615,7 +582,6 @@ describe("names", () => {
 
 describe("algorithms and keys", () => {
   it("decodes NULL, named curve and RSASSA-PSS algorithm parameters", () => {
-    // leaf-full: sha256WithRSAEncryption (NULL parameters) by issuing-ca-1 over a P-256 key.
     const leaf = certificate("leaf-full");
     expect(formatAlgorithm(leaf.signatureAlgorithm, SIGNATURE_ALG_NAMES, i18n)).toBe(
       "sha256WithRSAEncryption"

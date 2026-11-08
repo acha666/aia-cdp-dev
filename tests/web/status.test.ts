@@ -1,5 +1,3 @@
-// Status rules of the badges. The AD CS times come from the synthetic fixture
-// crls/issuing-ca-1/full-adcs (manifest.json).
 import { describe, expect, it } from "vitest";
 import manifest from "../fixtures/pki/manifest.json";
 import { computeCertificateStatus, computeCrlStatus, needsAttention } from "@/utils/status";
@@ -41,7 +39,6 @@ describe("computeCrlStatus", () => {
   });
 
   it("is stale with less than 20% left without Next CRL Publish", () => {
-    // 10 days: the 80% point is 8 days after thisUpdate.
     const eightDays = Date.parse(start) + 8 * DAY;
     expect(computeCrlStatus(start, end, now)).toBe("current");
     expect(computeCrlStatus(start, end, eightDays)).toBe("current");
@@ -53,14 +50,12 @@ describe("computeCrlStatus", () => {
     const status = (at: number) =>
       computeCrlStatus(ADCS.thisUpdate, ADCS.nextUpdate, at, ADCS.nextPublish);
 
-    // Past the 80% point but before Next CRL Publish: current.
     const eightyPercent =
       Date.parse(ADCS.thisUpdate) +
       0.8 * (Date.parse(ADCS.nextUpdate) - Date.parse(ADCS.thisUpdate));
     expect(status(eightyPercent + HOUR)).toBe("current");
     expect(status(publish + HOUR)).toBe("current");
     expect(status(publish + HOUR + 1)).toBe("stale");
-    // nextUpdate still wins: expired after it.
     expect(status(Date.parse(ADCS.nextUpdate) + 1)).toBe("expired");
   });
 });
@@ -72,7 +67,6 @@ describe("computeCertificateStatus", () => {
   });
 
   it("is expiring with less than 10% of the validity period left", () => {
-    // 10 days: expiring once less than one day remains.
     const oneDayLeft = Date.parse(end) - DAY;
     expect(computeCertificateStatus(start, end, oneDayLeft)).toBe("valid");
     expect(computeCertificateStatus(start, end, oneDayLeft + 1)).toBe("expiring");

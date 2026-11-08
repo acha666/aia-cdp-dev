@@ -1,6 +1,3 @@
-// Download routes: DER as stored and PEM derived on read, the headers, If-None-Match, HEAD, the
-// text/plain 404 / 405 and the 500 of a lost blob, through createApp().request() on state built by
-// importCertificate / applyConfig / publishCrl.
 import { describe, expect, it } from "vitest";
 import { certificateBlobKey } from "../../src/core/catalog.ts";
 import type { ObjectStore } from "../../src/core/store.ts";
@@ -20,19 +17,13 @@ const FULL = crlEntry(FULL_01);
 const IMMUTABLE = "public, max-age=31536000, immutable";
 const HOUR = 3_600_000;
 
-/** The served paths; full, delta and unpublished are setupPublish's target paths. */
 const P = {
-  /** root-ca; also served as rootAlias and nested (three paths, one certificate). */
   root: "/ca/root-ca.crt",
   rootAlias: "/ca/root.cer",
-  /** Two segments under /ca/ (V2 allows that): `%2F` must not reach it. */
   nested: "/ca/sub/root-ca.crt",
   issuing: "/ca/issuing-ca-1.crt",
-  /** issuing-ca-1's full CRL target; current: FULL_01. */
   full: "/crl/issuing-ca-1.crl",
-  /** issuing-ca-1's delta CRL target; current: DELTA_01. */
   delta: "/dcrl/issuing-ca-1.crl",
-  /** root-ca's full CRL target, never published. */
   unpublished: "/crl/root-ca.crl",
 } as const;
 
@@ -48,15 +39,8 @@ const OPTIONS: ReadServiceOptions = {
   publish: [FULL_01, DELTA_01],
 };
 
-/** Read only, so every test shares it (the blob-missing test builds its own). */
 const served = await readService(OPTIONS);
 
-/**
- * Requests to createApp over `base`, behind store ETags that are not the digest (a download ETag
- * comes from the catalog), an hour after the import and publish time (NOW), so that Last-Modified
- * cannot be the request's clock. `get` of the keys `failGet` names throws. The ui answers
- * index.html for every path, so a download miss that reached it would be a 200.
- */
 function requester(failGet?: (key: string) => boolean, base: ObjectStore = served.base) {
   const opaque = opaqueEtagStore(base);
   const store = patchStore(
@@ -85,7 +69,6 @@ function requester(failGet?: (key: string) => boolean, base: ObjectStore = serve
 
 const request = requester();
 
-/** Every blob read fails: what still answers never read the blob. */
 const blobless = requester((key) => key.startsWith("blobs/"));
 
 const DOWNLOAD_HEADERS = [
@@ -97,7 +80,6 @@ const DOWNLOAD_HEADERS = [
   "last-modified",
 ];
 
-/** The download headers of a response, by lowercase name (the secure headers left out). */
 function headersOf(res: Response): Record<string, string> {
   return Object.fromEntries(
     DOWNLOAD_HEADERS.flatMap((name) => {
@@ -115,11 +97,9 @@ describe("bytes", () => {
   it.each([
     [P.root, fixture(ROOT.der)],
     [`${P.root}.pem`, fixture(ROOT.pem)],
-    // Every path of a certificate names the same blob.
     [P.rootAlias, fixture(ROOT.der)],
     [P.nested, fixture(ROOT.der)],
     [P.full, fixture(FULL_01)],
-    // OpenSSL's PEM of the fixture: the same text as the one derived on read.
     [`${P.full}.pem`, fixture(FULL_01.replace(/\.der$/, ".pem"))],
     [`${P.delta}.pem`, new TextEncoder().encode(derToPem(fixture(DELTA_01), "crl"))],
   ])("GET %s sends the stored DER or the PEM derived from it", async (path, body) => {
@@ -127,7 +107,6 @@ describe("bytes", () => {
     expect(res.status).toBe(200);
     expect(await bytesOf(res)).toEqual(body);
     expect(res.headers.get("Content-Length")).toBe(String(body.byteLength));
-    // The file name is the last segment of the path.
     expect(res.headers.get("Content-Disposition")).toBe(
       `attachment; filename="${path.split("/").at(-1) ?? ""}"`
     );
@@ -201,7 +180,6 @@ describe("If-None-Match", () => {
     ["another ETag", P.root, `"${ISSUING.sha256}"`],
     ["the PEM ETag on the DER path", P.root, pem],
     ["the DER ETag on the PEM path", `${P.root}.pem`, der],
-    // W/ is case-sensitive; * only stands alone.
     ["a lowercase w/", P.root, `w/${der}`],
     ["* in a list", P.root, '"x", *'],
     ["an empty header", P.root, ""],
@@ -219,7 +197,6 @@ describe("text/plain 404 and 405", () => {
     ["another case", "/ca/Root-CA.crt"],
     ["an uppercase .PEM", `${P.root}.PEM`],
     [".pem in place of the extension", "/ca/root-ca.pem"],
-    // P.nested is served: decoding %2F would find it.
     ["an encoded slash in a served nested path", "/ca/sub%2Froot-ca.crt"],
     ["an encoded parent segment", "/ca/..%2Fconfig.json"],
     ["a double slash", "/ca//root-ca.crt"],
@@ -229,7 +206,6 @@ describe("text/plain 404 and 405", () => {
     ["a target that was never published", P.unpublished],
   ])("%s: %s, never the ui, never 304", async (_, path) => {
     for (const method of ["GET", "HEAD"]) {
-      // If-None-Match: * only matches a current representation (RFC 9110 §13.1.2).
       for (const headers of [{}, { "If-None-Match": "*" }]) {
         const res = await blobless(path, { method, headers });
         expect(res.status, method).toBe(404);

@@ -1,14 +1,8 @@
 {
-  // Browser program checked by vue-tsc: src/web (plus the server types it reaches through
-  // `import type { AppType }`, and core/pki and core/digest.ts, which the detail pages run to
-  // decode certificates and CRLs) and the happy-dom component tests.
   "extends": "./tsconfig.base.json",
   "compilerOptions": {
-    // ESNext.TypedArrays only for the core files src/web reaches: the browser never calls those
-    // methods (core/pki/pem.ts's base64 is server-side), which browsers before Chrome 140 lack.
     "lib": ["ES2024", "ESNext.TypedArrays", "DOM"],
     "types": ["vite/client"],
-    // Generated shadcn-vue code imports without extensions.
     "module": "ESNext",
     "moduleResolution": "Bundler",
     "paths": {

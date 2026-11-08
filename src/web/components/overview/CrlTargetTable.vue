@@ -14,11 +14,6 @@ import { formatDate, relativeTime } from "@/utils/dates";
 import { compareTargets } from "@/utils/targets";
 import { computeTargetStatus } from "@/utils/status";
 
-// The configured CRL targets, one table for full and delta targets: label with the
-// issuer, kind, CRL number, thisUpdate / nextUpdate (time left only while current), revoked count,
-// status and downloads. A target without a current CRL reads "Not published" with dashes, never 0,
-// and has no downloads (its paths answer 404). On a phone (below sm) only label, kind and status
-// show, as in CertificateTable.
 const { data, error, refetch } = useQuery(queries.crls());
 
 const SECONDARY = "hidden sm:table-cell";
@@ -55,6 +50,7 @@ const rows = computed(() => {
         remaining: state === "current" ? relativeTime(summary?.nextUpdate, nowMs, i18n) : null,
         revoked: summary === null ? null : String(summary.revokedCount),
         state,
+        // The paths answer 404 until a CRL is published.
         downloads: target.current === null ? [] : target.downloads,
       };
     });

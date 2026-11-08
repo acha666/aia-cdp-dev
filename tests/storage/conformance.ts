@@ -1,9 +1,6 @@
-// ObjectStore conformance suite. Every adapter runs the same cases; the factory hands
-// each case an empty store.
 import { beforeEach, describe, expect, it } from "vitest";
 import type { ObjectStore } from "../../src/core/store.ts";
 
-/** Keys every adapter rejects with TypeError. */
 const INVALID_KEYS: readonly string[] = [
   "",
   "/a",
@@ -19,7 +16,6 @@ const INVALID_KEYS: readonly string[] = [
   "C:\\x",
 ];
 
-/** Prefixes every adapter's list() rejects with TypeError. */
 const INVALID_PREFIXES: readonly string[] = [
   "blobs",
   "/a/",
@@ -54,6 +50,7 @@ async function etagOf(store: ObjectStore, key: string, value: string): Promise<s
 
 const REFUSED = { ok: false, reason: "precondition-failed" };
 
+/** The behaviour every {@link ObjectStore} must have, run against each backend. */
 export function describeObjectStore(
   name: string,
   factory: () => ObjectStore | Promise<ObjectStore>
@@ -116,8 +113,6 @@ export function describeObjectStore(
 
     it("lets exactly one of five concurrent puts with the same ifMatch win", async () => {
       const base = await etagOf(store, "catalog.json", "base");
-      // Distinct payloads: an adapter whose ETag follows the content would let identical writes
-      // all succeed against the unchanged ETag.
       const payloads = ["w0", "w1", "w2", "w3", "w4"];
       const results = await Promise.all(
         payloads.map((payload) => store.put("catalog.json", bytesOf(payload), { ifMatch: base }))

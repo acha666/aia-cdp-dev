@@ -1,6 +1,10 @@
-// Certificate import and deletion.
-// There is one commit point, the catalog write: no companion objects, no edge cache. Importing does
-// not authorize anything: a certificate only becomes an issuer once a config target names it.
+/**
+ * Importing and deleting CA certificates. An imported certificate can be used as a CRL issuer
+ * and served under `/ca/` paths.
+ *
+ * @packageDocumentation
+ */
+
 import { certificateBlobKey, certificateReferences, readCatalog, updateState } from "./catalog.ts";
 import type { CatalogCertificate, CatalogDeps, CertificateSummary, State } from "./catalog.ts";
 import { sha256Hex } from "./digest.ts";
@@ -10,16 +14,12 @@ import { parseCertificate } from "./pki/parsers.ts";
 import { toDer } from "./pki/pem.ts";
 import { buildCertificateSummary } from "./summary.ts";
 
-// Import ------------------------------------------------------------------------------------------
-
 export interface ImportDeps extends CatalogDeps {
   now: () => Date;
 }
 
-/** created added the catalog entry; unchanged found the id in the catalog and added none. */
 export interface ImportSuccess {
   outcome: "created" | "unchanged";
-  /** SHA-256 of the DER. */
   id: string;
   entry: CatalogCertificate;
 }
@@ -29,24 +29,12 @@ export type ImportResult =
   | { error: "invalid_certificate"; details: { reason: PkiParseReason } }
   | { error: "concurrent_update"; id: string };
 
-/**
- * Imports one certificate (DER or a single PEM block; the format is recognized from the bytes).
- * The id is the SHA-256 of the DER. Already in the catalog → `unchanged` with the stored entry and
- * no write. Otherwise the blob is written create-only (an existing blob has the same bytes: the
- * key is the digest) and the entry added by updateState, which checks again for the id on every
- * attempt, so two concurrent imports of one certificate end as one `created` and one `unchanged`.
- *
- * Any rejection happens before the first write. If the catalog write is lost (concurrent_update)
- * or the process dies after the blob write, only an unreferenced blob remains; certificates are
- * listed from the catalog, so it stays invisible.
- */
+/** Imports a certificate (DER or PEM); importing it again is `unchanged`. */
 export async function importCertificate(
   deps: ImportDeps,
   bytes: Uint8Array
 ): Promise<ImportResult> {
   const now = deps.now();
-  // Every PkiParseError is a 422. Only an admin imports, so what the certificate itself gets wrong
-  // is left to the tool that made it.
   let der: Uint8Array;
   let summary: CertificateSummary;
   try {
@@ -68,7 +56,6 @@ export async function importCertificate(
   }
 
   const key = certificateBlobKey(id);
-  // precondition-failed: the blob is already there with these very bytes.
   await deps.store.put(key, der, { ifNoneMatch: "*" });
 
   const entry: CatalogCertificate = {
@@ -93,12 +80,9 @@ export async function importCertificate(
   return { ...update, id };
 }
 
-// Deletion ----------------------------------------------------------------------------------------
-
-/** Where a certificate is referenced (`details.references[]` of referenced). */
+/** Where a certificate that cannot be deleted is still used. */
 export interface CertificateReference {
   object: "config.json" | "catalog.json";
-  /** Keys from the object's root. */
   path: string[];
 }
 
@@ -108,13 +92,6 @@ export type DeleteCertificateResult =
   | { error: "referenced"; details: { references: CertificateReference[] } }
   | { error: "concurrent_update" };
 
-/**
- * Every reference to certificate `id`: config.json's (certificateReferences, what rule V4 checks),
- * and the verifier of any current CRL in the catalog, also of a target removed from config.json. A
- * target's history is verified by the certificate that verified its current (V9), so that
- * reference protects the history too, unless the target's id was removed and added back with
- * another issuer (checkConfigMigration in ./admin.ts).
- */
 function referencesOf(state: State, id: string): CertificateReference[] {
   const references: CertificateReference[] = certificateReferences(state.config)
     .filter((reference) => reference.id === id)
@@ -131,12 +108,8 @@ function referencesOf(state: State, id: string): CertificateReference[] {
 }
 
 /**
- * Removes an unreferenced certificate (`id`, the SHA-256 of its DER) from the catalog, then deletes
- * its blob. The verifier of a target's current CRL stays referenced, also once the target is
- * removed from config.json. The catalog write is conditional and retried (updateState); config.json
- * is not written, and an apply that adds a reference in between is the accepted cross-object window
- * (one operator at a time). A crash between the two writes leaves an unreferenced blob, which a
- * later import of the same certificate writes again.
+ * Deletes a certificate that nothing references: no config entry and no current CRL it
+ * verified.
  */
 export async function deleteCertificate(
   deps: CatalogDeps,
@@ -157,6 +130,7 @@ export async function deleteCertificate(
   if (!("key" in outcome)) {
     return outcome;
   }
+  // The blob goes only after the catalog no longer points at it.
   await deps.store.delete(outcome.key);
   return { deleted: true };
 }

@@ -1,5 +1,3 @@
-// Routes of the web app: the page each path renders, the props of the lazy detail pages, and that
-// a malformed id never becomes a request.
 import { beforeEach, describe, expect, it } from "vitest";
 import { mountApp, stubApi } from "./helpers";
 import CertificatePage from "@/pages/CertificatePage.vue";
@@ -13,7 +11,6 @@ const CERTIFICATE_ID = "3f1c".repeat(16);
 let api: ReturnType<typeof stubApi>;
 
 beforeEach(() => {
-  // Health answers healthy; every other API path is a 404 envelope.
   api = stubApi({});
 });
 

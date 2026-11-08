@@ -1,5 +1,3 @@
-// GET /api/v1/openapi.json: generated from the route registry at run time, cached per app
-// instance, and identical to docs/openapi.json, a file snapshot (pnpm run openapi rewrites it).
 import { describe, expect, it } from "vitest";
 import { createApp } from "../../src/http/app.ts";
 import { testDeps } from "../helpers/app.ts";

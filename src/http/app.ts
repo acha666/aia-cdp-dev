@@ -1,8 +1,3 @@
-// The one HTTP application behind both runtimes; it never sees a runtime env, only AppDeps.
-//
-// Every route is registered here, before the first request (SmartRouter freezes then). Never
-// `app.get("*")`: methodNotAllowed would turn every unknown-path POST into 405, so the UI fallback
-// lives in notFound.
 import { OpenAPIHono } from "@hono/zod-openapi";
 import { methodNotAllowed } from "hono/method-not-allowed";
 import { securityHeaders } from "./csp.ts";
@@ -19,7 +14,6 @@ import { onMethodNotAllowed, uiFallback } from "./ui.ts";
 const OPENAPI_CONFIG = {
   openapi: "3.1.0",
   info: { title: "aia-cdp API", version: "1" },
-  // Every operation carries one of these (tests/http/openapi.test.ts).
   tags: [
     { name: "health", description: "Service health" },
     { name: "certificates", description: "Imported CA certificates" },
@@ -32,20 +26,21 @@ const OPENAPI_CONFIG = {
   ],
 };
 
+/**
+ * Builds the HTTP application shared by the Node server and the Worker: the JSON API under
+ * `/api/v1`, public downloads under `/ca/`, `/crl/` and `/dcrl/`, and the web UI for
+ * everything else.
+ */
 export function createApp(deps: AppDeps) {
   const app = new OpenAPIHono({ defaultHook: validationHook });
 
   app.onError(createErrorHandler(deps.log));
   app.notFound(uiFallback(deps));
 
-  // The admin and upload routes add their own auth and bodyLimit after these (routes/admin.ts,
-  // routes/crls.ts). secureHeaders covers every response, the UI's too (ui.ts copies the deps.ui
-  // answer first); its CSP is the UI's (csp.ts) and changes nothing for JSON or downloads.
   app.use(securityHeaders);
   app.use(requestLog(deps.log));
   app.use(methodNotAllowed({ app, onMethodNotAllowed }));
 
-  // Kept for the life of this app (one per process / isolate). This route is not in the document.
   let openapiJson: string | undefined;
   app.get("/api/v1/openapi.json", (c) => {
     openapiJson ??= JSON.stringify(app.getOpenAPI31Document(OPENAPI_CONFIG));
@@ -55,9 +50,7 @@ export function createApp(deps: AppDeps) {
     });
   });
 
-  // AppType (hc<AppType>) is inferred from the chained value, so only the public routes join it.
-  // The admin routes are served and documented but stay out of the web client's types; the
-  // download routes are a plain Hono app, neither in AppType nor in the OpenAPI document.
+  // Only the public read routes are part of the type the web client is generated from.
   const routes = app
     .route("/api/v1", healthRoutes(deps))
     .route("/api/v1", certificateRoutes(deps))
@@ -67,4 +60,5 @@ export function createApp(deps: AppDeps) {
   return routes;
 }
 
+/** The type of the public API, for Hono's typed client in the web UI. */
 export type AppType = ReturnType<typeof createApp>;

@@ -1,4 +1,3 @@
-// Shared display and X.509 components, mounted in happy-dom.
 import { flushPromises, mount } from "@vue/test-utils";
 import * as asn1 from "asn1js";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -22,7 +21,6 @@ import type { AppLocale } from "@/i18n";
 import { describeExtension } from "@/x509/extensions";
 import type { ExtensionDisplay } from "@/x509/extensions";
 
-// happy-dom has no execCommand; the copy tests install one for the textarea fallback.
 afterEach(() => Reflect.deleteProperty(document, "execCommand"));
 
 function render(component: Component, props: Record<string, unknown>, locale: AppLocale = "en") {
@@ -105,7 +103,6 @@ describe("HexValue", () => {
     });
     const copied: string[] = [];
     document.execCommand = vi.fn((command: string) => {
-      // The browser copies the selection: the textarea that has the focus.
       const area = document.activeElement;
       copied.push(`${command}:${area instanceof HTMLTextAreaElement ? area.value : ""}`);
       return true;
@@ -127,7 +124,6 @@ describe("HexValue", () => {
   });
 
   it("reports a copy that execCommand refuses as a toast, not as copied", async () => {
-    // Plain HTTP: no Clipboard API; the browser answers execCommand("copy") with false.
     vi.stubGlobal("navigator", { ...navigator, clipboard: undefined });
     const execCommand = vi.fn(() => false);
     document.execCommand = execCommand;
@@ -170,7 +166,6 @@ describe("LocaleSelect", () => {
     ]);
     expect(locale.text()).toContain("Language");
     await select.setValue("zh-CN");
-    // The global scope: the label (and the rest of the app) switches language.
     expect(locale.text()).toContain("语言");
     expect((select.element as HTMLSelectElement).value).toBe("zh-CN");
   });
@@ -204,7 +199,6 @@ describe("NameDetails", () => {
   });
 });
 
-/** An extension whose value is the UTF8String "A": no decoder takes it as its own value. */
 function extension(extnID: string, critical: boolean): PlainExtension {
   return { extnID, critical, value: Uint8Array.of(0x0c, 0x01, 0x41) };
 }
@@ -218,7 +212,6 @@ describe("ExtensionList", () => {
       extension("2.5.29.19", true),
     ];
     const list = render(ExtensionList, { extensions: items });
-    // Basic Constraints, Key Usage; then 1.2.5, Subject Key Identifier.
     expect(list.findAll("[data-oid]").map((item) => item.attributes("data-oid"))).toEqual([
       "2.5.29.19",
       "2.5.29.15",
@@ -236,7 +229,6 @@ describe("ExtensionList", () => {
 });
 
 describe("ExtensionView", () => {
-  /** An ExtensionView inside an Accordion, opened. */
   function renderOpen(value: ExtensionDisplay, locale: AppLocale = "en") {
     return mount(Accordion, {
       props: { type: "multiple", defaultValue: [value.oid] },
@@ -266,7 +258,6 @@ describe("ExtensionView", () => {
       "SEQUENCE (5)",
       "  UTF8String (3) abc",
     ]);
-    // The raw value is collapsed until asked for.
     expect(view.find('[data-testid="hex-value"]').exists()).toBe(false);
     const rawHex = view.findAll("button").find((button) => button.text() === "Raw value (hex)");
     expect(rawHex).toBeDefined();
@@ -274,7 +265,6 @@ describe("ExtensionView", () => {
     expect(view.get('[data-testid="hex-value"]').element.textContent).toBe("0C:03:61:62:63");
   });
 
-  /** The display of `value` (DER of the extension value) as the extension `oid`. */
   const decoded = (oid: string, value: asn1.BaseBlock, locale: AppLocale = "en") =>
     describeExtension(
       { extnID: oid, critical: false, value: new Uint8Array(value.toBER()) },
@@ -282,7 +272,6 @@ describe("ExtensionView", () => {
     );
 
   it("renders the sections of a decoded extension without dump or raw value", () => {
-    // A CA renewed with its old key: CA Version V1.0.
     const view = renderOpen(
       decoded("1.3.6.1.4.1.311.21.1", new asn1.Integer({ value: 1 }), "zh-CN"),
       "zh-CN"
@@ -330,7 +319,6 @@ describe("ExtensionView", () => {
       decoded("2.5.29.14", new asn1.OctetString({ valueHex: Uint8Array.of(0xab, 0x12).buffer }))
     );
     expect(ski.get('dd [data-testid="hex-value"]').element.textContent).toBe("AB:12");
-    // No sections: the body reads "(empty)".
     expect(renderOpen(decoded("2.5.29.30", new asn1.Sequence())).text()).toContain("(empty)");
   });
 

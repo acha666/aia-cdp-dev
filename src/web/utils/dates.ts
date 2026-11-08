@@ -1,8 +1,3 @@
-// Dates and relative times for display. vue-i18n comes in as an argument (the component's
-// useI18n(); its locale is read at call time, so a computed that formats re-runs on a language
-// change) and the clock as nowMs (from useClock) for the relative times. Hours use hourCycle
-// "h23": hour12: false renders five past midnight as 24:05 in some engines. Times show in the
-// browser's time zone, labelled with its offset.
 import type { I18nText } from "@/i18n";
 
 const DAY_S = 24 * 60 * 60;
@@ -18,7 +13,6 @@ const TIME_OPTIONS: Intl.DateTimeFormatOptions = {
   hourCycle: "h23",
 };
 
-/** The local UTC offset at `date`: "UTC", "UTC+8", "UTC-3:30". */
 function formatTimezoneOffset(date: Date): string {
   const offsetMinutes = -date.getTimezoneOffset();
   if (offsetMinutes === 0) {
@@ -34,10 +28,7 @@ function formatTimezoneOffset(date: Date): string {
   return `UTC${sign}${hours}:${String(minutes).padStart(2, "0")}`;
 }
 
-/**
- * "Jan 04, 2026 00:05:07 (UTC)", without the time or the offset when they are turned off; N/A
- * without a value, the text itself when it is no date.
- */
+/** Formats a timestamp in the local time zone, naming its UTC offset. */
 export function formatDate(
   iso: string | null | undefined,
   i18n: Pick<I18nText, "locale" | "t">,
@@ -60,10 +51,8 @@ export function formatDate(
 }
 
 /**
- * The distance from `nowMs` to `iso` as "in 2h 5m" / "5m ago": minutes are rounded, never shown as
- * 0, and 60 of them carry into the hour. From one day on it is whole days through
- * Intl.RelativeTimeFormat ("in 3 days"), unless `detailed` asks for every unit ("in 3d 4h 5m").
- * "" without a valid date.
+ * Describes a timestamp relative to `nowMs`: in whole days beyond a day, otherwise in
+ * hours and minutes. `detailed` always uses days, hours and minutes.
  */
 export function relativeTime(
   iso: string | null | undefined,

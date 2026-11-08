@@ -1,32 +1,36 @@
-// ObjectStore port, implemented by src/storage/{memory,fs,r2}.ts.
-// ETags are opaque and only ever passed back to the same adapter; they are never used as HTTP
-// ETags (those always come from the content SHA-256), and HTTP If-Match values never reach a store.
+/**
+ * The object storage contract shared by the R2, disk and in-memory backends.
+ *
+ * @packageDocumentation
+ */
 
+/** Conditional-write preconditions, evaluated against the stored object's ETag. */
 export interface PutOptions {
-  /** Replace: the current ETag must be equal. */
   ifMatch?: string;
-  /** Create: the key must not exist. */
   ifNoneMatch?: "*";
 }
 
+/** A failed precondition is a result, not an error, so callers can retry or report it. */
 export type PutResult = { ok: true; etag: string } | { ok: false; reason: "precondition-failed" };
 
+/**
+ * A flat key-value blob store with ETags and conditional writes.
+ *
+ * Keys are `/`-separated segments that satisfy {@link isStoreKeySegment}.
+ */
 export interface ObjectStore {
-  /**
-   * `bytes` is backed by an ArrayBuffer, so it goes to WebCrypto and into a Response body as
-   * it is; it may be a view into a larger buffer.
-   */
   get(key: string): Promise<{ bytes: Uint8Array<ArrayBuffer>; etag: string } | null>;
   put(key: string, bytes: Uint8Array, opts?: PutOptions): Promise<PutResult>;
-  /** Admin only. */
+  /** Lists every object under `prefix`, which is `""` or ends in `/`. */
   list(prefix: string): Promise<{ key: string; size: number }[]>;
-  /** Admin only. */
+  /** Deletes `key`; deleting a missing key is not an error. */
   delete(key: string): Promise<void>;
 }
 
 /**
- * The bytes at `key`, a blob that catalog.json names: a missing one is a broken store, not a bad
- * request, and throws (the HTTP layer answers its generic 500).
+ * Reads an object that the catalog says exists.
+ *
+ * @throws Error if the object is missing, which means the store is inconsistent.
  */
 export async function readBlob(store: ObjectStore, key: string): Promise<Uint8Array<ArrayBuffer>> {
   const object = await store.get(key);
@@ -38,10 +42,7 @@ export async function readBlob(store: ObjectStore, key: string): Promise<Uint8Ar
 
 const SEGMENT = /^[A-Za-z0-9_-][A-Za-z0-9._-]*$/;
 
-/**
- * One segment of a store key. The fs adapter also uses it on directory entries: names that fail
- * it (temporary files, `lost+found`, `a (copy).der`) are never keys.
- */
+/** Whether `segment` is a valid key segment: no leading dot, so no `.`, `..` or hidden files. */
 export function isStoreKeySegment(segment: string): boolean {
   return SEGMENT.test(segment);
 }
@@ -50,22 +51,14 @@ function isStoreKey(key: string): boolean {
   return key.split("/").every(isStoreKeySegment);
 }
 
-/**
- * Every adapter calls this before get / put / delete (it is also the fs adapter's path traversal
- * guard). A key is one or more `/`-separated segments matching
- * `[A-Za-z0-9_-][A-Za-z0-9._-]*`: no empty key or segment, no `.` / `..` or other leading dot, no
- * absolute path, backslash or NUL. Every key the service writes qualifies.
- */
+/** @throws TypeError if `key` is not a valid store key. */
 export function assertStoreKey(key: string): void {
   if (!isStoreKey(key)) {
     throw new TypeError(`Invalid store key: ${JSON.stringify(key)}`);
   }
 }
 
-/**
- * Every adapter's list() calls this first. A prefix is `""` (everything; tests use it to empty a
- * bucket) or one or more valid key segments followed by `/` (`blobs/`, `history/<targetId>/`).
- */
+/** @throws TypeError if `prefix` is neither `""` nor a valid key followed by `/`. */
 export function assertStorePrefix(prefix: string): void {
   if (prefix !== "" && !(prefix.endsWith("/") && isStoreKey(prefix.slice(0, -1)))) {
     throw new TypeError(`Invalid store prefix: ${JSON.stringify(prefix)}`);

@@ -1,7 +1,3 @@
-// Store wrappers for write assertions: recordingStore logs every write attempt in order,
-// flakyStore makes conditional writes lose or puts throw, racingStore lets a rival write before the
-// first catalog write. They wrap any ObjectStore and can be stacked: recordingStore(flakyStore(base,
-// …)) records the lost puts.
 import { CATALOG_KEY } from "../../src/core/catalog.ts";
 import type { ObjectStore, PutOptions, PutResult } from "../../src/core/store.ts";
 import { MemoryStore } from "../../src/storage/memory.ts";
@@ -11,10 +7,10 @@ export type StoreWrite =
   { op: "put"; key: string; opts: PutOptions; result: PutResult } | { op: "delete"; key: string };
 
 export interface RecordingStore extends ObjectStore {
-  /** Every put (with its result) and delete, in call order; a put that throws is not listed. */
   writes: StoreWrite[];
 }
 
+/** A store that records every write. */
 export function recordingStore(base: ObjectStore = new MemoryStore()): RecordingStore {
   const writes: StoreWrite[] = [];
   return {
@@ -36,7 +32,6 @@ export function recordingStore(base: ObjectStore = new MemoryStore()): Recording
   };
 }
 
-/** The puts in order, without store ETags: `{ key, opts, ok }`. */
 export function puts(store: RecordingStore): { key: string; opts: PutOptions; ok: boolean }[] {
   return store.writes.flatMap((write) =>
     write.op === "put" ? [{ key: write.key, opts: write.opts, ok: write.result.ok }] : []
@@ -44,12 +39,11 @@ export function puts(store: RecordingStore): { key: string; opts: PutOptions; ok
 }
 
 export interface FlakyOptions {
-  /** The first n puts carrying `ifMatch` answer precondition-failed and write nothing. */
   failIfMatch?: number;
-  /** Every put throws this (after nothing was written). */
   putError?: Error;
 }
 
+/** A store whose first `failIfMatch` conditional writes fail, or whose writes all throw. */
 export function flakyStore(base: ObjectStore, options: FlakyOptions): ObjectStore {
   let failures = options.failIfMatch ?? 0;
   return patchStore(
@@ -69,10 +63,7 @@ export function flakyStore(base: ObjectStore, options: FlakyOptions): ObjectStor
   );
 }
 
-/**
- * `base`, except that `rival` runs right before the first catalog.json put is forwarded: a
- * concurrent writer that lands between this call's state read and its catalog write.
- */
+/** A store that runs `rival` just before the first catalog write. */
 export function racingStore(base: ObjectStore, rival: () => Promise<unknown>): ObjectStore {
   let raced = false;
   return patchStore(
@@ -89,11 +80,7 @@ export function racingStore(base: ObjectStore, rival: () => Promise<unknown>): O
   );
 }
 
-/**
- * Store ETags that are neither the content SHA-256 nor HTTP entity tags (as on R2): `get` and
- * `put` report `store:<etag>`, and `ifMatch` is translated back. Shows that a caller passes the
- * store's ETag back and never a digest it computed.
- */
+/** A store whose ETags are not content hashes, like R2's. */
 export function opaqueEtagStore(base: ObjectStore = new MemoryStore()): ObjectStore {
   const wrap = (etag: string) => `store:${etag}`;
   return patchStore(
@@ -103,7 +90,6 @@ export function opaqueEtagStore(base: ObjectStore = new MemoryStore()): ObjectSt
         return object === null ? null : { ...object, etag: wrap(object.etag) };
       },
       put: async (key, bytes, opts = {}) => {
-        // A value this wrapper did not hand out (such as a digest) can never match.
         const { ifMatch } = opts;
         const inner =
           ifMatch === undefined || ifMatch.startsWith("store:")

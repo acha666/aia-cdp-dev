@@ -1,7 +1,3 @@
-# Committed generated files and fixtures (Prettier also reads .gitignore)
 pnpm-lock.yaml
 docs/openapi.json
 tests/fixtures/pki/
-
-# Hand-written Chinese docs: wide tables are not reflowed by Prettier
-docs/**/*.md

@@ -2,10 +2,8 @@
 ARG NODE_VERSION=26
 FROM node:${NODE_VERSION}-slim AS base
 WORKDIR /app
-# Node 25+ ships without corepack.
 RUN npm install -g pnpm@12
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
-# Switches once to the pnpm recorded in pnpm-lock.yaml, for both install stages.
 RUN pnpm --version
 
 FROM base AS prod-deps

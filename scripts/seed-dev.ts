@@ -1,15 +1,10 @@
-// node scripts/seed-dev.ts   (pnpm run seed:dev)
-// Seeds a development server through the CLI's main (src/cli/aia.ts): imports the root and both
-// issuing CA certificates of tests/fixtures/pki, then, unless a configuration exists, applies one
-// with fresh target ids that serves them under /ca/<name>.crt, /crl/<name>.crl and
-// /dcrl/issuing-ca-{1,2}.crl, and publishes a CRL to every target but issuing-ca-2's delta (CRLS),
-// which stays unpublished, so the UI shows that state too.
-// Idempotent: a second run reports every certificate and CRL unchanged and leaves the
-// configuration alone (pnpm run reset:dev starts over).
-//
-//   AIA_URL=http://127.0.0.1:8787 AIA_ADMIN_TOKEN=dev-admin-token pnpm run seed:dev
-//
-// The CRLs go up with the upload token when AIA_UPLOAD_TOKEN is set (the CLI's publish).
+/**
+ * Fills a running development server (`AIA_URL`) with the test PKI: imports the CA
+ * certificates, applies a config if there is none, and publishes some CRLs.
+ *
+ * @packageDocumentation
+ */
+
 import process from "node:process";
 import { emptyConfig, encodeJson } from "../src/core/catalog.ts";
 import type { Config } from "../src/core/catalog.ts";
@@ -20,14 +15,9 @@ import { cert, fixturePath } from "../tests/fixtures/pki.ts";
 interface Ca {
   name: string;
   label: string;
-  /** Also gets a delta CRL target and a /dcrl/ path. */
   delta: boolean;
 }
 
-/**
- * One CRL per target but issuing-ca-2's delta: the root's OpenSSL-style CRL (no Next CRL Publish)
- * and issuing-ca-1's AD CS-style pair with two revocations.
- */
 const CRLS = [
   "crls/root-ca/full-01.der",
   "crls/issuing-ca-1/full-adcs.der",
@@ -44,7 +34,6 @@ const CAS: Ca[] = [
 function seedConfig(): Config {
   const config = emptyConfig();
   for (const ca of CAS) {
-    // The certificate id is the SHA-256 of the DER, which the manifest records.
     const id = cert(ca.name).sha256;
     config.certificates[id] = { label: ca.label };
     config.paths[`/ca/${ca.name}.crt`] = { certificate: id };
@@ -72,11 +61,9 @@ async function seed(): Promise<number> {
     return imported;
   }
 
-  // The public health report tells a missing configuration from an existing or broken one.
   const res = await fetch(new URL("/api/v1/health", process.env.AIA_URL));
   const { checks } = (await res.json()) as HealthReport;
   if (checks.configuration === "missing") {
-    // Applied through the CLI as a file would be; the generated document never touches the disk.
     const generated = "<seed-dev config>";
     const bytes = encodeJson(seedConfig());
     process.stdout.write("seed-dev: applying a configuration\n");

@@ -1,7 +1,3 @@
-// A CA made in the test process (a WebCrypto P-256 key, a self-signed PKIjs certificate) and the
-// CRLs it signs, for shapes the committed fixtures cannot hold: thousands of revoked entries or a
-// CRL Number at its length limit. Its certificate goes through importCertificate and applyConfig
-// like any fixture CA; every time derives from NOW.
 import type { webcrypto } from "node:crypto";
 import * as asn1 from "asn1js";
 import * as pkijs from "pkijs";
@@ -14,9 +10,7 @@ import { applyOver, importOrThrow } from "./publish.ts";
 const HOUR = 3_600_000;
 
 export interface GeneratedCa {
-  /** DER of the self-signed CA certificate. */
   der: Uint8Array;
-  /** Its Subject Key Identifier: the SHA-1 of the public key bits. */
   keyId: Uint8Array;
   commonName: string;
   privateKey: webcrypto.CryptoKey;
@@ -28,6 +22,7 @@ const commonNameOf = (commonName: string) =>
 const utcTime = (offsetMs: number) =>
   new pkijs.Time({ type: 0, value: new Date(NOW.getTime() + offsetMs) });
 
+/** Generates a fresh CA with Web Crypto, for cases the fixtures do not cover. */
 export async function generateCa(commonName = "Generated Test CA"): Promise<GeneratedCa> {
   const { privateKey, publicKey } = await crypto.subtle.generateKey(
     { name: "ECDSA", namedCurve: "P-256" },
@@ -53,24 +48,16 @@ export async function generateCa(commonName = "Generated Test CA"): Promise<Gene
     extension("2.5.29.14", new asn1.OctetString({ valueHex: keyId })),
   ];
   await certificate.sign(privateKey, "SHA-256");
-  // true encodes the TBS from the fields: the bytes just signed.
   const der = new Uint8Array(certificate.toSchema(true).toBER(false));
   return { der, keyId, commonName, privateKey };
 }
 
 export interface CrlOptions {
-  /** CRL Number (default 1). */
   crlNumber?: bigint;
-  /** thisUpdate as an offset from NOW in ms (default an hour before). */
   thisUpdateMs?: number;
-  /**
-   * Revoked entries (default none), each with a reasonCode: AD CS writes one for every revocation
-   * that has a reason.
-   */
   revoked?: number;
 }
 
-/** A full CRL of `ca`, nextUpdate a week after NOW, as DER. */
 export async function signCrl(
   ca: GeneratedCa,
   { crlNumber = 1n, thisUpdateMs = -HOUR, revoked = 0 }: CrlOptions = {}
@@ -87,7 +74,6 @@ export async function signCrl(
       { length: revoked },
       (_, index) =>
         new pkijs.RevokedCertificate({
-          // Nine-octet serials, as many CAs write them.
           userCertificate: asn1.Integer.fromBigInt(2n ** 64n + BigInt(index)),
           revocationDate,
           crlEntryExtensions: new pkijs.Extensions({ extensions: [reasonCode] }),
@@ -106,11 +92,9 @@ export async function signCrl(
     ],
   });
   await crl.sign(ca.privateKey, "SHA-256");
-  // true: encode from the fields (decoding the signed TBS again would meet asn1js's node limit).
   return new Uint8Array((crl.toSchema(true) as asn1.Sequence).toBER(false));
 }
 
-/** Imports `ca` and applies a config.json with one full target for it; returns the target id. */
 export async function setupGeneratedCa(store: ObjectStore, ca: GeneratedCa): Promise<string> {
   const issuer = await importOrThrow(store, ca.der);
   const targetId = crypto.randomUUID();

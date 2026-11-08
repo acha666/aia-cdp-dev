@@ -5,14 +5,11 @@ import type { RelativeDistinguishedNames } from "pkijs";
 import KeyValueList from "@/components/KeyValueList.vue";
 import { readName } from "@/x509/names";
 
-// A distinguished name: the RFC 4514 string, the six usual attributes (always listed, "(empty)"
-// when absent) and every other attribute of the RDNs (DC, emailAddress, serialNumber, ...), whose
-// string type shows on hover.
 const props = defineProps<{ name: RelativeDistinguishedNames; title?: string }>();
 
 const { t } = useI18n();
 
-/** CN, O, OU, C, ST, L: the Name field and the attribute type it comes from. */
+// The common attributes always get a row; any others follow with their own labels.
 const FIELDS = [
   ["commonName", "2.5.4.3"],
   ["organization", "2.5.4.10"],
@@ -21,14 +18,12 @@ const FIELDS = [
   ["stateOrProvince", "2.5.4.8"],
   ["locality", "2.5.4.7"],
 ] as const;
-/** The attributes the fields show; the others are listed one by one. */
 const NORMALIZED_OIDS = new Set<string>(FIELDS.map(([, oid]) => oid));
 
 const view = computed(() => readName(props.name));
 
 const items = computed(() => {
   const attributes = view.value.rdns.flat();
-  /** The first string value of the attribute type, in RDN order. */
   const first = (oid: string) =>
     attributes.find((attribute) => attribute.oid === oid && attribute.string !== undefined)?.string;
   return [

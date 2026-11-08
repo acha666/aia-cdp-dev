@@ -6,14 +6,9 @@ import { MemoryStore } from "../../src/storage/memory.ts";
 import { cert, NOW } from "../fixtures/pki.ts";
 import { publishFile, setupPublish } from "../helpers/publish.ts";
 
-// resolveDownload and downloadHeaders where the routes cannot steer them: documents that do not
-// back a path, and the edges of the CRL max-age. Everything a request reaches is
-// tests/http/downloads.test.ts.
-
 const HOUR = 3_600_000;
 const ROOT = cert("root-ca");
 const ROOT_PATH = "/ca/root-ca.crt";
-/** issuing-ca-1's full target in setupPublish; current: full-01. */
 const FULL_PATH = "/crl/issuing-ca-1.crl";
 
 const store = new MemoryStore();
@@ -40,7 +35,6 @@ describe("resolveDownload", () => {
       status: "inconsistent",
       reference: { certificate: ROOT.sha256 },
     });
-    // The catalog still holds a current CRL for it; the configuration no longer defines it.
     const { [fullTarget]: _full, ...rest } = config.targets;
     expect(resolveDownload({ ...config, targets: rest }, catalog, FULL_PATH)).toEqual({
       status: "inconsistent",

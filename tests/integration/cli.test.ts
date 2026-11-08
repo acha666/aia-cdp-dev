@@ -1,6 +1,3 @@
-// The CLI in process: main() with fetch = app.request over a MemoryStore, so every subcommand's
-// output and exit code is checked without a socket. tests/integration/node-e2e.test.ts runs it as
-// a real process against the Node runtime.
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -36,7 +33,6 @@ afterAll(async () => {
   await rm(scratch, { recursive: true, force: true });
 });
 
-/** Writes a file into the scratch directory and returns its path. */
 async function scratchFile(name: string, content: string | Uint8Array): Promise<string> {
   const path = join(scratch, name);
   await writeFile(path, content);
@@ -47,11 +43,9 @@ interface Sent {
   method: string;
   url: string;
   headers: Headers;
-  /** The body as sent, byte for byte. */
   bytes: Uint8Array;
 }
 
-/** createApp with the admin token set, and a fetch that records every request it forwards. */
 function service(overrides: TestOverrides = {}) {
   const deps = testDeps({
     ...overrides,
@@ -75,14 +69,12 @@ function service(overrides: TestOverrides = {}) {
 
 type Service = ReturnType<typeof service>;
 
-/** The service with every certificate imported and the shared targets applied. */
 async function publishing(overrides: TestOverrides = {}) {
   const svc = service(overrides);
   const setup = await setupPublish(svc.deps.store);
   return { svc, setup };
 }
 
-/** A fetch that must not be called. */
 const offline: CliIo["fetch"] = () => {
   throw new Error("this command must not touch the network");
 };
@@ -108,13 +100,11 @@ async function aia(argv: string[], io: Partial<Pick<CliIo, "fetch" | "env">> = {
     readFile: (path) => readFile(path),
     writeFile: (path, bytes) => writeFile(path, bytes),
   });
-  // Never echoed, whatever happened.
   expect(stdout + stderr).not.toContain(TOKEN);
   expect(stdout + stderr).not.toContain(UPLOAD_TOKEN);
   return { code, stdout, stderr };
 }
 
-/** aia against `svc` with AIA_URL and AIA_ADMIN_TOKEN set. */
 function against(svc: Service, argv: string[], env: Record<string, string> = ENV) {
   return aia(argv, { fetch: svc.fetch, env });
 }
@@ -133,7 +123,7 @@ describe("usage", () => {
     [["--help"], "Usage: aia ", "config"],
     [["help"], "Usage: aia ", "publish"],
     [["config", "--help"], "Usage: aia config ", "validate <file>"],
-    [["config", "apply", "--help"], "Usage: aia config apply ", "If-None-Match: *"],
+    [["config", "apply", "--help"], "Usage: aia config apply ", "as a whole"],
     [["help", "history"], "Usage: aia history ", "--out <file>"],
   ])("prints help for %j without service access", async (argv, usage, detail) => {
     const run = await aia(argv);
@@ -144,7 +134,6 @@ describe("usage", () => {
     expect(run.stdout).toContain("Exit codes: 0 success, 1 failure or not healthy, 2 usage error.");
   });
 
-  // The default fetch is offline: none of these sends anything.
   it.each<[string[], Record<string, string>, RegExp]>([
     [[], ENV, /missing command/],
     [["config"], ENV, /missing command/],
@@ -160,7 +149,6 @@ describe("usage", () => {
     [["health", "--nope"], ENV, /unknown option '--nope'/],
     [["health"], { AIA_ADMIN_TOKEN: TOKEN }, /no service URL: pass --url or set AIA_URL/],
     [["import", ROOT_DER], { AIA_URL: BASE }, /no admin token: pass --token-file/],
-    // Both variables are refused before the file is read.
     [
       ["config", "show"],
       { ...ENV, AIA_ADMIN_TOKEN_FILE: "/unused" },
@@ -200,8 +188,6 @@ describe("usage", () => {
 });
 
 describe("tokens", () => {
-  // The production host answers plain HTTP (AIA / CDP clients need it), so http://<host> reaches
-  // the service and would carry a token in clear text.
   it("sends a token over plain http:// only to a loopback host or with --allow-insecure-http", async () => {
     const { svc } = await publishing({ settings: { uploadToken: UPLOAD_TOKEN } });
     const at = (url: string, argv: string[]) =>
@@ -394,7 +380,6 @@ describe("import", () => {
   it("sends each certificate block on its own, isolates failures, and exits 1", async () => {
     const svc = service();
     const badBlock = "-----BEGIN CERTIFICATE-----\n!!!!\n-----END CERTIFICATE-----\n";
-    // Other labels (a key) are skipped and never sent; text around the blocks is ignored.
     const key =
       "-----BEGIN PRIVATE KEY-----\nMC4CAQAwBQYDK2VwBCIEIA==\n-----END PRIVATE KEY-----\n";
     const issuing = fixtureText(cert("issuing-ca-1").pem);
@@ -418,7 +403,6 @@ describe("import", () => {
       expect.stringMatching(new RegExp(`^created    ${cert("root-ca").sha256}  `)),
       "2 created, 0 unchanged, 4 failed",
     ]);
-    // Only the certificate blocks went out, one per request.
     const pems = svc.sent
       .map((request) => new TextDecoder().decode(request.bytes))
       .filter((text) => text.startsWith("-----BEGIN "));
@@ -524,7 +508,6 @@ describe("config apply", () => {
 
   it("prints every issue of a 422 from the service", async () => {
     const svc = service();
-    // Statically valid, but nothing is imported (V4).
     const file = await configFile("unimported.json", configFor(["root-ca"]));
     const run = await against(svc, ["config", "apply", file]);
     expect(run.code).toBe(1);
@@ -534,14 +517,12 @@ describe("config apply", () => {
       `the service rejected ${file}: HTTP 422 config_invalid: The configuration is invalid ` +
         "(3 issues):"
     );
-    // The wording is core's; the CLI prints each issue's rule and path.
     expect(issues.map((line) => /^ {2}V4 {2}\S+: /.test(line))).toEqual([true, true, true]);
   });
 
   it("reports 412 when the config changed between GET and PUT, and does not retry", async () => {
     const svc = service();
     await putText(svc.deps.store, CONFIG_KEY, MINIMAL_CONFIG);
-    // Another operator applies right after this CLI's GET.
     const racing: CliIo["fetch"] = async (url, init) => {
       const res = await svc.fetch(url, init);
       if (init.method === "GET") {
@@ -576,7 +557,6 @@ describe("publish", () => {
     const { svc, setup } = await publishing();
     const run = await against(svc, ["publish", ROOT_CRL, FULL_01_PEM], {
       ...UPLOAD_ENV,
-      // The admin token is never sent to the upload route.
       AIA_ADMIN_TOKEN: TOKEN,
     });
     expect(run).toEqual({
@@ -593,7 +573,6 @@ describe("publish", () => {
       ["POST", `${BASE}/api/v1/crls`],
       ["POST", `${BASE}/api/v1/crls`],
     ]);
-    // Each file as is, byte for byte.
     expect(svc.sent.map((request) => request.bytes)).toEqual(
       ["crls/root-ca/full-01.der", "crls/issuing-ca-1/full-01.pem"].map((file) => fixture(file))
     );
@@ -626,7 +605,6 @@ describe("publish", () => {
       expect.stringMatching(new RegExp(`^failed     ${missing}: cannot read the file: ENOENT`)),
       `failed     ${GARBAGE}: HTTP 422 invalid_crl (der): Not a valid X.509 CRL`,
     ]);
-    // The missing file was never sent.
     expect(svc.sent).toHaveLength(5);
   });
 
@@ -637,7 +615,6 @@ describe("publish", () => {
     expect(run.stderr).toBe("");
     expect(JSON.parse(run.stdout)).toEqual({
       results: [
-        // The rest is the route's body as is (crls-upload.test).
         expect.objectContaining({
           file: ROOT_CRL,
           ok: true,
@@ -704,7 +681,6 @@ describe("batch response failures", () => {
 describe("history", () => {
   const FILES = ["crls/issuing-ca-1/full-01.der", "crls/issuing-ca-1/full-02.der"];
 
-  /** issuing-ca-1's full target with full-01 and full-02 published. */
   async function withHistory() {
     const { svc, setup } = await publishing();
     const run = await against(svc, ["publish", ...FILES.map(fixturePath)]);

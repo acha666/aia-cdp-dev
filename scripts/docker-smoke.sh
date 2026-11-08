@@ -1,15 +1,6 @@
 #!/usr/bin/env bash
-# Build the Docker image and smoke-test a container of it (pnpm run ci:docker).
-#
-#   bash scripts/docker-smoke.sh
-#
-# Builds the image, runs it with a fresh named volume on a random loopback port and an admin token,
-# waits for Docker's health status "healthy" while the API reports "degraded", and checks uid 1000.
-# The image's own CLI (dist/server/cli/aia.js, via docker exec) imports the fixture CA certificates
-# (docker cp'd in) and applies a configuration; scripts/smoke.sh then checks "healthy", the
-# downloads, a CRL upload, the reads and the UI. Last, `docker stop` must finish within 5 s with
-# exit code 0. The container, volume and image tag are removed on exit; the build cache is kept.
-# Needs bash, curl, cmp, sha256sum and Docker Engine >= 25.
+# Builds the Docker image, runs it with a fresh volume and checks health, the non-root user,
+# the bundled CLI, scripts/smoke.sh and a clean shutdown.
 set -euo pipefail
 
 ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
@@ -17,7 +8,6 @@ cd "$ROOT"
 ID=aia-cdp-smoke-$$-$RANDOM
 IMAGE=$ID:latest NAME=$ID VOLUME=$ID
 CERTS=tests/fixtures/pki/certs
-# Passed by name (docker run -e AIA_ADMIN_TOKEN), so it never appears on a command line.
 AIA_ADMIN_TOKEN=smoke-$(od -An -N16 -tx1 /dev/urandom | tr -d ' \n')
 export AIA_ADMIN_TOKEN
 
@@ -27,7 +17,6 @@ die() {
 }
 
 T=$(mktemp -d "${TMPDIR:-/tmp}/aia-cdp-docker-smoke.XXXXXX")
-# The names are this run's own, and removing one that does not exist is no error.
 cleanup() {
   rm -rf "$T"
   docker rm -f -v "$NAME" >/dev/null 2>&1 || true
@@ -37,7 +26,8 @@ cleanup() {
 trap cleanup EXIT
 
 failures=0
-check() { # DESCRIPTION COMMAND...: ok when the command succeeds
+# check DESCRIPTION COMMAND...: passes when COMMAND succeeds.
+check() {
   local description=$1
   shift
   if "$@"; then
@@ -62,7 +52,7 @@ BASE=http://127.0.0.1:${hostport##*:}
 
 started=$(date +%s%3N)
 state=''
-for _ in $(seq 240); do # 60 s
+for _ in $(seq 240); do
   state=$(docker inspect -f '{{.State.Status}}/{{.State.Health.Status}}' "$NAME")
   case $state in
     running/healthy | running/unhealthy | exited/* | dead/*) break ;;
@@ -82,10 +72,9 @@ check "health is degraded: ${out//$'\n'/ }" test "$ok" = 0
 uid=$(docker exec "$NAME" id -u)
 check "runs as uid $uid (want 1000)" test "$uid" = 1000
 
-# The CLI inside the image. docker exec inherits the container's AIA_ADMIN_TOKEN; the CLI only
-# needs the URL.
 aia() { docker exec -e AIA_URL=http://127.0.0.1:8080 "$NAME" node dist/server/cli/aia.js "$@"; }
-aia_check() { # DESCRIPTION ERE ARGS...: the CLI exits 0 and its output matches ERE
+# aia_check DESCRIPTION REGEX ARGS...: passes when the CLI succeeds and its output matches.
+aia_check() {
   local description=$1 want=$2 out status=0 ok=1
   shift 2
   out=$(aia "$@" 2>&1) || status=$?
@@ -93,8 +82,6 @@ aia_check() { # DESCRIPTION ERE ARGS...: the CLI exits 0 and its output matches 
   check "$description (exit $status): ${out//$'\n'/ | }" test "$ok" = 0
 }
 
-# One DER file and one PEM bundle of two blocks; the config serves the root and its CRL target as
-# scripts/smoke.sh expects them.
 mkdir "$T/smoke"
 cp "$CERTS/root-ca.der" "$T/smoke/root-ca.der"
 cat "$CERTS/issuing-ca-1.pem" "$CERTS/issuing-ca-2.pem" >"$T/smoke/chain.pem"
@@ -111,7 +98,6 @@ cat >"$T/smoke/config.json" <<JSON
   }
 }
 JSON
-# docker cp keeps the modes, and uid 1000 must be able to read them in the container.
 chmod 755 "$T/smoke"
 chmod 644 "$T/smoke"/*
 docker cp "$T/smoke/." "$NAME:/tmp/aia-smoke"

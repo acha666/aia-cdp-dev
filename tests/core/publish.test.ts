@@ -19,20 +19,13 @@ import { downloadsOf, publish, publishFile, setupPublish, versionOf } from "../h
 import type { SetupOptions } from "../helpers/publish.ts";
 import { flakyStore, puts, racingStore, recordingStore } from "../helpers/store.ts";
 
-// publishCrl on a MemoryStore. Every case starts from the shared setup unless it says otherwise:
-// every `import: true` certificate imported, and full + delta targets for issuing-ca-1 and -2 and
-// full targets for root-ca, ed25519-ca and ed448-ca. The helpers fail a case whose call logs
-// anything but one record.
-
 const FULL_01 = "crls/issuing-ca-1/full-01.der";
 const FULL_02 = "crls/issuing-ca-1/full-02.der";
 const DELTA_01 = "crls/issuing-ca-1/delta-01.der";
 const ROOT_FULL_01 = "crls/root-ca/full-01.der";
 
-/** The engine whose verifyWithPublicKey checks every signature. */
 const engine = pkijs.getCrypto(true);
 
-/** The manifest entry of a CRL fixture; a `.pem` file stands for its `.der`. */
 const entryOf = (file: string) => crlEntry(file.replace(/(?:\.crlf)?\.pem$/, ".der"));
 
 const iso = (time: string) => new Date(time).toISOString();
@@ -104,20 +97,17 @@ describe("publishCrl: the freshness rules on the manifest scenarios", () => {
           }
         : { error: outcome, details: { current: versionOf(scenario.current!) } }
     );
-    // No write; the catalog is byte for byte the same.
     expect(store.writes).toEqual([]);
     expect((await base.get(CATALOG_KEY))!.bytes).toEqual(catalogBefore!.bytes);
   });
 });
 
-// The SKI of the CA that signed the rogue CRLs, which no configured certificate has.
 const rogueCa = fixture(cert("rogue-ca").der);
 const rogueKeyId = (await buildCertificateSummary(parseCertificate(rogueCa), rogueCa)).subjectKeyId;
 
 describe("publishCrl: rejections", () => {
   const future = "crls/issuing-ca-1/full-future.der";
 
-  // One row per error code and details shape: the parser and policy tests own the reasons.
   it.each<[string, PublishErrorCode, object]>([
     ["invalid/garbage.txt", "invalid_crl", { reason: "der" }],
     [future, "not_yet_valid", { thisUpdate: iso(crlEntry(future).thisUpdate) }],
@@ -137,10 +127,6 @@ describe("publishCrl: rejections", () => {
     expect(store.writes).toEqual([]);
   });
 
-  // The outer signatureAlgorithm is outside the signature. asn1js decodes an OID subidentifier
-  // padded with 0x80 and a NULL with contents and re-encodes both canonically, so unless the octets
-  // are compared as received a third party could make such a variant of a genuine CRL current
-  // first (no upload token by default) and lock the CA's own bytes out as conflict.
   it.each([
     [FULL_01, "an OID padded with 0x80", padOid],
     [ROOT_FULL_01, "an added NULL with contents", nullWithContents],
@@ -155,7 +141,6 @@ describe("publishCrl: rejections", () => {
     expect((await publishFile(store, file)).result).toMatchObject({ outcome: "created" });
   });
 
-  // Unverified revoked entries are never decoded: an anonymous upload costs one signature check.
   it("answers invalid_signature, not invalid_crl, for a revoked list of 50 000 NULLs", async () => {
     const { base } = await fresh();
     const crl = pkijs.CertificateRevocationList.fromBER(fixture(FULL_01));
@@ -177,8 +162,6 @@ describe("publishCrl: rejections", () => {
     expect(store.writes).toEqual([]);
   });
 
-  // The rest is decoded before the signature check, so only up to 16 KiB: asn1js makes an object
-  // for every arc of an OID, and the outer signatureAlgorithm is outside the signature.
   it("answers invalid_crl for an outer signatureAlgorithm OID of 20 000 arcs", async () => {
     const { base } = await fresh();
     const oid = new asn1.ObjectIdentifier({ value: `1.2.${Array(20_000).fill(1).join(".")}` });
@@ -204,7 +187,6 @@ describe("publishCrl: issuer and target", () => {
     expect(store.writes).toEqual([]);
   });
 
-  // The issuer the target names verifies, whatever other certificate shares its key.
   it("verifies with the certificate each target names when a same-key renewal is imported", async () => {
     const { base, setup } = await fresh({
       certificates: ["root-ca", "issuing-ca-1", "issuing-ca-1-renewed"],
@@ -282,7 +264,6 @@ describe("publishCrl: what an upload writes", () => {
     });
     expect(verify).not.toHaveBeenCalled();
     expect(store.writes).toEqual([]);
-    // Kind and number come from the catalog.
     expect(record).toMatchObject({
       level: "info",
       outcome: "unchanged",
@@ -330,15 +311,12 @@ describe("publishCrl: concurrent writers", () => {
     const first = await currentCrl(FULL_01, targetId);
     const second = await currentCrl(FULL_02, targetId);
     const marker = crlHistoryKey(targetId, first.summary, first.sha256);
-    // Blob and marker once each (create-only, immutable), then 1 + 3 conditional catalog writes.
     expect(puts(store).map((put) => [put.key, put.ok])).toEqual([
       [second.key, true],
       [marker, true],
       ...Array.from({ length: 4 }, () => [CATALOG_KEY, false]),
     ]);
     expect((await base.get(CATALOG_KEY))!.bytes).toEqual(before!.bytes);
-    // full-01 stays current; its marker holds no time, so it is still right whenever full-01 is
-    // really superseded.
     expect(await currentOf(base, targetId)).toEqual(first);
     expect(await json(base, marker)).toEqual(first);
   });
@@ -361,7 +339,6 @@ describe("publishCrl: the publish log line", () => {
       attempts: 1,
       ms: expect.any(Number) as unknown,
     });
-    // The policy runs before the target is resolved: no targetId.
     const rejected = crlEntry("crls/issuing-ca-1/full-idp-scoped.der");
     expect((await publishFile(base, rejected.file)).record).toEqual({
       level: "warn",
@@ -378,11 +355,9 @@ describe("publishCrl: the publish log line", () => {
   });
 });
 
-// CRLs a CA made in the test signs: shapes the fixtures cannot hold.
 describe("publishCrl: CRLs of a generated CA", () => {
   const ca = generateCa();
 
-  // asn1js limits a decoding to 10 000 nodes by default, and an entry with a reasonCode takes 8.
   it("publishes a CRL with 3000 revoked entries, each with a reasonCode", async () => {
     const base = new MemoryStore();
     const targetId = await setupGeneratedCa(base, await ca);
@@ -394,8 +369,6 @@ describe("publishCrl: CRLs of a generated CA", () => {
     });
   });
 
-  // The number is part of the blob and marker names, and a file system allows 255 octets, also for
-  // the fs adapter's temporary file `.<name>.<uuid>.tmp`.
   it("publishes a CRL Number of MAX_CRL_NUMBER_OCTETS octets and refuses one more", async () => {
     const base = new MemoryStore();
     const targetId = await setupGeneratedCa(base, await ca);

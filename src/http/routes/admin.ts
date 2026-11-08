@@ -1,9 +1,3 @@
-// Admin routes: certificate import and deletion, config.json and CRL target history. Outside the
-// AppType chain (see app.ts); the CLI uses plain fetch.
-//
-// While no admin token is configured, every /admin/* request is a 503 before auth and before the
-// body is read; with one, bearerAuth (constant time) runs before bodyLimit. Failures are thrown, so
-// onError writes every envelope (no-store).
 import { createRoute, OpenAPIHono, z } from "@hono/zod-openapi";
 import type { TypedResponse } from "hono";
 import { bearerAuth } from "hono/bearer-auth";
@@ -38,8 +32,6 @@ const SECURITY_SCHEME = "adminBearer";
 const security = [{ [SECURITY_SCHEME]: [] }];
 const tags = ["admin"];
 
-// Shared responses -------------------------------------------------------------------------------
-
 const ADMIN_FAILURES = {
   400: jsonResponse("Malformed Authorization header, or an invalid request", ErrorResponse),
   401: {
@@ -64,9 +56,6 @@ const ETAG = z.object({
   }),
 });
 
-// POST /admin/certificates -----------------------------------------------------------------------
-
-// The format (DER or one PEM block) is recognized from the bytes; the type only gates 415.
 const certificateMediaType = mediaTypeGate(
   CERTIFICATE_MEDIA_TYPES,
   "Send the certificate as application/pkix-cert, application/x-pem-file or " +
@@ -104,18 +93,15 @@ const importCertificateRoute = createRoute({
   },
 });
 
-// DELETE /admin/certificates/{id} ----------------------------------------------------------------
-
 const deleteCertificateRoute = createRoute({
   method: "delete",
   path: "/admin/certificates/{id}",
   operationId: "deleteCertificate",
   summary: "Delete a CA certificate",
   description:
-    "Removes an imported certificate and its blob, unless config.json or the current CRL of a " +
-    "target (also of one removed from config.json) references it: then 409 `referenced` with " +
-    "`details.references`. The verifier of a target's current CRL stays referenced, also once " +
-    "the target is removed.",
+    "Removes an imported certificate and its blob, unless config.json names it or it verified " +
+    "the current CRL of a target, including a target removed from config.json: then 409 " +
+    "`referenced` with `details.references`.",
   tags,
   security,
   request: { params: CertificateIdParam },
@@ -130,16 +116,14 @@ const deleteCertificateRoute = createRoute({
   },
 });
 
-// GET / PUT /admin/config ------------------------------------------------------------------------
-
 const getConfigRoute = createRoute({
   method: "get",
   path: "/admin/config",
   operationId: "getConfig",
   summary: "Read config.json",
   description:
-    "The stored bytes as they are, also when an out-of-band write left them invalid (so that " +
-    "they can be repaired). The ETag is the SHA-256 of those bytes, for `If-Match` on PUT.",
+    "The stored bytes as they are, even if they are invalid, so they can be repaired. The ETag " +
+    "is the SHA-256 of those bytes, for `If-Match` on PUT.",
   tags,
   security,
   responses: {
@@ -153,14 +137,9 @@ const getConfigRoute = createRoute({
   },
 });
 
+/** The ETag that GET sends; a weak tag, a list or `*` never matches. */
 const STRONG_SHA256_ETAG = /^"([0-9a-f]{64})"$/;
 
-/**
- * The precondition of PUT /admin/config: exactly one of `If-Match` or `If-None-Match: *`. Neither,
- * both, or an If-None-Match other than `*` → 428 precondition_required. An If-Match that is not one
- * strong ETag as GET sends it (`W/`, a list, unquoted, `*`) can never match → 412; so can a
- * well-formed one for another state (applyConfig).
- */
 function configPrecondition(headers: Headers): ConfigPrecondition {
   const ifMatch = headers.get("If-Match");
   const ifNoneMatch = headers.get("If-None-Match");
@@ -225,7 +204,7 @@ const applyConfigRoute = createRoute({
     },
     ...ADMIN_FAILURES,
     412: jsonResponse(
-      "The precondition does not hold (another apply came first, or W/ / list / *)",
+      "The stored config changed since GET, or If-Match is not a single strong ETag",
       ErrorResponse
     ),
     413: PAYLOAD_TOO_LARGE,
@@ -235,17 +214,14 @@ const applyConfigRoute = createRoute({
   },
 });
 
-// GET /admin/crls/{targetId}/history[/{sha256}] -------------------------------------------------
-
 const getHistoryRoute = createRoute({
   method: "get",
   path: "/admin/crls/{targetId}/history",
   operationId: "getCrlHistory",
   summary: "List a CRL target's history",
   description:
-    "Every version that was published as the target's current CRL, newest first: the superseded " +
-    "ones and the current one, also for a target removed from config.json (retired). Blobs that " +
-    "a lost publish race left behind are not history.",
+    "Every version that was published as the target's current CRL, newest first, including " +
+    "for a target removed from config.json.",
   tags,
   security,
   request: { params: TargetIdParam },
@@ -276,13 +252,8 @@ const getHistoryVersionRoute = createRoute({
   },
 });
 
-/**
- * config.json bytes with the HTTP ETag (the SHA-256 of exactly these bytes, never the store's
- * ETag). Typed as the route's JSON body, which the bytes are unless an out-of-band write broke
- * them: GET passes such bytes through as they are.
- */
+/** Sends the config as stored bytes, so the ETag matches what the client receives. */
 function configResponse(bytes: Uint8Array, sha256: string) {
-  // A copy: an adapter may hand out a view into a larger buffer.
   const res = new Response(new Uint8Array(bytes), {
     status: 200,
     headers: { "Content-Type": "application/json", ETag: `"${sha256}"`, ...NO_STORE },
@@ -290,8 +261,10 @@ function configResponse(bytes: Uint8Array, sha256: string) {
   return res as unknown as TypedResponse<JSONParsed<Config>, 200, "json">;
 }
 
-// Sub-app ----------------------------------------------------------------------------------------
-
+/**
+ * The admin API: certificate import and deletion, config.json, and CRL history. It needs
+ * `AIA_ADMIN_TOKEN`, and answers 503 while that is unset.
+ */
 export function adminRoutes(deps: AppDeps) {
   const { log } = deps;
   const admin = new OpenAPIHono();
@@ -367,8 +340,7 @@ export function adminRoutes(deps: AppDeps) {
       ? new ApiError(
           409,
           "referenced",
-          "The certificate is referenced: remove the references from config.json first, or keep " +
-            "it (the verifier of a target's current CRL stays referenced)",
+          "The certificate is still referenced: see details.references",
           result.details
         )
       : new ApiError(409, "concurrent_update", "The catalog kept changing concurrently: retry");
@@ -420,9 +392,7 @@ export function adminRoutes(deps: AppDeps) {
       }
       return configResponse(encodeJson(result.config), result.sha256);
     },
-    // ConfigSchema validates the body before the handler runs: a failure is config_invalid (rule
-    // V1), not the default 400, whatever the precondition. Without a JSON Content-Type the
-    // validator checks `{}`.
+    // A body that fails the schema is reported like any other rule violation (V1).
     (result) => {
       if (result.success) {
         return undefined;

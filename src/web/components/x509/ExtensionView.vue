@@ -10,11 +10,6 @@ import { CollapsibleContent, CollapsibleRoot, CollapsibleTrigger } from "reka-ui
 import Asn1Dump from "@/components/x509/Asn1Dump.vue";
 import type { ExtensionDisplay } from "@/x509/extensions";
 
-// One extension as an accordion item (inside ExtensionList's Accordion). The header names it
-// (OID beside a known name, on its baseline; hover underlines the name only), marks it critical
-// and, unless decoded, gives its parse status. The body shows the sections of x509/extensions.ts,
-// each one KeyValueList, a rule between them. An extension that is not decoded (no decoder, or
-// its value does not decode) shows the parse error, an ASN.1 dump and the raw value.
 defineProps<{ extension: ExtensionDisplay; value: string }>();
 
 const { t } = useI18n();

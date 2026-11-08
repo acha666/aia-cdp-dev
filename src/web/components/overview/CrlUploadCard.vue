@@ -27,15 +27,6 @@ import { useCrlUploadInput } from "@/composables/useCrlUploadInput";
 import { uploadToken as token } from "@/upload-token";
 import { errorMessage, errorReason } from "@/utils/errors";
 
-// Publishing a CRL from the browser: no submit while the input is invalid or an upload runs, the
-// input cleared only if it did not change meanwhile, a drop takes its first file, the file input is
-// reset after a choice, the PEM hint only for text that is there. Files go as they are, pasted PEM
-// as a file named crl.pem, both as the request body; the server tells PEM from DER by the bytes.
-// created, updated and unchanged are all successes; a failure shows errors.<code> inline. The
-// optional token (AIA_UPLOAD_TOKEN) stays in memory and opens itself when the server
-// asks for it. Keyboard focus: the submit button is only aria-disabled while an upload runs (a
-// disabled button drops the focus to <body>), and the result alert takes the focus from it
-// afterwards (a cleared input disables the button).
 const i18n = useI18n();
 const { t } = i18n;
 const client = useQueryClient();
@@ -52,10 +43,8 @@ const { isOverDropZone } = useDropZone(dropZone, {
   },
 });
 const tokenOpen = ref(false);
-// The token field takes the focus whenever it is rendered (the collapsible mounts it when it opens).
 const tokenField = useTemplateRef<ComponentPublicInstance>("tokenField");
 const { focused: tokenFocused } = useFocus(tokenField, { initialValue: true });
-// Set before the first await: two clicks in one tick must not both pass the guard.
 const busy = ref(false);
 
 const submitButton = useTemplateRef<{ $el: HTMLElement }>("submitButton");
@@ -80,7 +69,7 @@ function openToken() {
   tokenFocused.value = true;
 }
 
-/** The result alert takes the focus when the submit button had it (or it was already lost). */
+// Moves focus to the result, unless the user has moved it elsewhere meanwhile.
 async function focusResult(alert: typeof successAlert) {
   const active = document.activeElement;
   if (active !== null && active !== document.body && active !== submitButton.value?.$el) {
@@ -104,13 +93,13 @@ async function submit() {
       : submitted;
   try {
     const published = await upload.mutateAsync({ file: crl, token: token.value.trim() });
-    // The target's label from the cached list, when that list has it.
     const cached = client.getQueryData(queries.crls().queryKey);
     const target =
       cached?.find((item) => item.targetId === published.target)?.label ??
       t(`upload.kindTarget.${published.kind}`);
     const message = t(`upload.outcome.${published.outcome}`, { target });
     success.value = { message, published };
+    // Keep a CRL that was chosen while this one was uploading.
     if (input.value === submitted) {
       clear();
     }
@@ -130,7 +119,6 @@ async function submit() {
 function onFileChange(event: Event) {
   const element = event.target as HTMLInputElement;
   const chosen = element.files?.[0];
-  // The same file can be chosen again after it was replaced by text.
   element.value = "";
   if (chosen) {
     selectFile(chosen);

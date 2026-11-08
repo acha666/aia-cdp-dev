@@ -15,10 +15,6 @@ import { compareTargets } from "@/utils/targets";
 import { rowOf, rows } from "@/utils/values";
 import { formatAlgorithm, publicKeyInfo, uniqueIdHex, versionText } from "@/x509/fields";
 
-// The overview tab of a certificate: subject and issuer, validity (the status is in the page
-// header), serial number, public key summary, the signature algorithm with its parameters and the
-// signature value, fingerprints (of the file, from the list item), unique identifiers when
-// present, and the CRL targets this certificate issues for, in the overview table's order.
 const props = defineProps<{ certificate: CertificateListItem; decoded: Certificate }>();
 
 const i18n = useI18n();
@@ -37,7 +33,6 @@ const general = computed(() => [
   row("size", t("common.bytes", { count: props.certificate.size })),
 ]);
 
-/** Key type and size or curve. */
 const publicKey = computed(() => {
   const spki = props.decoded.subjectPublicKeyInfo;
   const { bits, curve } = publicKeyInfo(spki);

@@ -1,6 +1,3 @@
-// In-memory ObjectStore for tests. ETag = content SHA-256. The conditional check and the write
-// happen synchronously after the only await, so two concurrent conditional puts cannot both
-// succeed.
 import { sha256Hex } from "../core/digest.ts";
 import { assertStoreKey, assertStorePrefix } from "../core/store.ts";
 import type { ObjectStore, PutOptions, PutResult } from "../core/store.ts";
@@ -10,6 +7,7 @@ interface StoredObject {
   etag: string;
 }
 
+/** An in-memory store, for tests. */
 export class MemoryStore implements ObjectStore {
   readonly #objects = new Map<string, StoredObject>();
 
@@ -21,11 +19,8 @@ export class MemoryStore implements ObjectStore {
 
   async put(key: string, bytes: Uint8Array, opts: PutOptions = {}): Promise<PutResult> {
     assertStoreKey(key);
-    // Copy before the await so later changes to the caller's buffer cannot leak in.
     const copy = bytes.slice();
     const etag = await sha256Hex(copy);
-    // No await from here to the write: of several concurrent puts with the same ifMatch, only
-    // the first to resume sees the old ETag.
     const current = this.#objects.get(key);
     if (opts.ifNoneMatch === "*" && current !== undefined) {
       return { ok: false, reason: "precondition-failed" };

@@ -1,18 +1,11 @@
 engineStrict: true
 saveExact: true
 
-# Install scripts are not needed: wrangler types, deploy --dry-run, wrangler dev and getPlatformProxy
-# work without the esbuild / workerd postinstalls, and vue-demi (via @tanstack/vue-query) already
-# ships its Vue 3 build as the default. pnpm fails the install on any build script not listed here.
 allowBuilds:
   esbuild: false
   workerd: false
   vue-demi: false
 
-# vue-eslint-parser require()s the "newest" espree / eslint-scope it can find from process.cwd().
-# Without a copy at the project root, Debian's patched nodejs also searches /usr/share/nodejs,
-# whose node-espree / node-eslint-scope report version "main" -> "Parsing error: Invalid Version: main"
-# on every .vue file.
 publicHoistPattern:
   - espree
   - eslint-scope

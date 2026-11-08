@@ -1,2 +1,1 @@
-# wrangler dev reads .dev.vars (gitignored): cp .dev.vars.example .dev.vars
 AIA_ADMIN_TOKEN=dev-admin-token

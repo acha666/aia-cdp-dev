@@ -4,9 +4,6 @@ import HexValue from "@/components/HexValue.vue";
 import { Badge } from "@/components/ui/badge";
 import type { Value } from "@/utils/values";
 
-// One value of utils/values.ts, each kind in its one style: text keeps its line breaks, hex is
-// grouped with a copy button, lines are a monospace list that wraps anywhere (long LDAP URLs),
-// tags are badges. Anything empty reads "(empty)".
 const props = defineProps<{ value: Value | null | undefined }>();
 
 const { t } = useI18n();

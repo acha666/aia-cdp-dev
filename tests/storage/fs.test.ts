@@ -6,7 +6,6 @@ import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { FsStore } from "../../src/storage/fs.ts";
 import { describeObjectStore } from "./conformance.ts";
 
-// rename stays the real one unless a case makes it fail once.
 vi.mock(import("node:fs/promises"), async (importOriginal) => {
   const actual = await importOriginal();
   return { ...actual, rename: vi.fn(actual.rename) };
@@ -24,7 +23,6 @@ afterAll(async () => {
   await rm(parent, { recursive: true, force: true });
 });
 
-/** A new, empty, existing directory per call. */
 function freshDir(): Promise<string> {
   return mkdtemp(join(parent, "case-"));
 }
@@ -50,7 +48,6 @@ describe("FsStore", () => {
     const got = await second.get("blobs/crls/t1/x.der");
     expect(got?.etag).toBe(created.etag);
     expect(Array.from(got!.bytes)).toEqual(Array.from(bytes("crl")));
-    // The ETag survives the restart, so conditional writes continue where they left off.
     expect(
       (await second.put("blobs/crls/t1/x.der", bytes("crl2"), { ifMatch: created.etag })).ok
     ).toBe(true);

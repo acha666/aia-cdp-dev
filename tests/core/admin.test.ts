@@ -20,9 +20,6 @@ import { currentCrl, putCatalog } from "../helpers/catalog.ts";
 import { applyOver, importOrThrow } from "../helpers/publish.ts";
 import { flakyStore, puts, recordingStore } from "../helpers/store.ts";
 
-// The config rules V1–V9 (validateConfig), applyConfig, which writes only config.json, and
-// deleteCertificate.
-
 const IMPORTED = ["root-ca", "issuing-ca-1", "issuing-ca-2", "issuing-ca-1-renewed", "leaf-min"];
 
 const id = (name: string) => cert(name).sha256;
@@ -43,7 +40,6 @@ function target(issuer: string, kind: "full" | "delta", label = `${issuer.slice(
   return { issuer: id(issuer), kind, label };
 }
 
-/** A valid configuration: root-ca with a full CRL, issuing-ca-1 with full + delta. */
 function baseline() {
   const ids = { root: crypto.randomUUID(), full: crypto.randomUUID(), delta: crypto.randomUUID() };
   const config: Config = {
@@ -68,7 +64,6 @@ function baseline() {
   return { ids, config };
 }
 
-/** `[rule, path]` of each issue, in order (messages are for people). */
 function rules(check: ConfigCheck | ConfigIssue[]): [string, (string | number)[]][] {
   const issues = Array.isArray(check) ? check : check.ok ? [] : check.issues;
   return issues.map((issue) => [issue.rule, issue.path]);
@@ -205,7 +200,6 @@ describe("config rules", () => {
       ["V6", ["targets", renewed, "issuer"]],
     ]);
 
-    // The renewed certificate may take over the delta CRL while the original keeps the full one.
     const { [ids.delta]: _delta, ...targets } = config.targets;
     const split = {
       ...config,
@@ -316,7 +310,6 @@ describe("deleteCertificate", () => {
     const base = await storeWith();
     const { ids, config } = baseline();
     await applyOver(base, config);
-    // issuing-ca-2 verified the current CRL of a target that is no longer in config.json.
     const removed = crypto.randomUUID();
     await putCatalog(base, {
       ...(await catalogOf(base)),

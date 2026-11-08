@@ -1,7 +1,9 @@
-// The one-line texts of a certificate's and a CRL's other fields: version, algorithms (with their
-// parameters), the public key's size or curve, and the unique identifiers. The RSASSA-PSS integers
-// are read from their contents octets: PKIjs's numbers are asn1js's valueDec, 0 from four contents
-// octets on.
+/**
+ * Formatting of certificate and CRL fields outside the extensions.
+ *
+ * @packageDocumentation
+ */
+
 import { ObjectIdentifier, Sequence } from "asn1js";
 import * as pkijs from "pkijs";
 import { CURVE_NAMES, HASH_ALG_NAMES } from "../../core/pki/constants.ts";
@@ -10,23 +12,20 @@ import { toUpperHex } from "../../core/digest.ts";
 import type { I18nText } from "@/i18n";
 import { MASK_GEN_ALG_NAMES, oidName } from "./oid-names";
 
-/** "v1", "v2", "v3" from the version field (0, 1, 2; absent is v1). */
 export const versionText = (version: number | undefined) => `v${String((version ?? 0) + 1)}`;
 
-/** An OID's name from `names`, else from the dictionary, else the OID. */
 const nameOf = (oid: string, names?: Record<string, string>) => oidName(oid, names) ?? oid;
 
 const RSASSA_PSS_OID = "1.2.840.113549.1.1.10";
 
 const SALT_LENGTH = context(2);
 
-/** saltLength [2] EXPLICIT INTEGER of RSASSA-PSS-params (RFC 4055 §3.1); undefined when absent. */
+/** The salt length field as encoded, if present. */
 function saltLength(params: Sequence): number | undefined {
   const field = params.valueBlock.value.find((block) => hasTag(block, SALT_LENGTH));
   return field && readInteger(expectTag(explicit(field, SALT_LENGTH), INTEGER));
 }
 
-/** "SHA-256, MGF1/SHA-256, salt 32"; undefined when the parameters do not decode. */
 function pssText(params: Sequence, i18n: Pick<I18nText, "t">): string | undefined {
   try {
     const pss = new pkijs.RSASSAPSSParams({ schema: params });
@@ -37,10 +36,9 @@ function pssText(params: Sequence, i18n: Pick<I18nText, "t">): string | undefine
         const hash = new pkijs.AlgorithmIdentifier({ schema: mgfParams });
         mask += `/${nameOf(hash.algorithmId, HASH_ALG_NAMES)}`;
       } catch {
-        // An MGF1 hash that does not decode is left out.
+        // The mask is shown without its hash.
       }
     }
-    // PKIjs's default (20, RFC 4055 §3.1) when absent.
     const salt = i18n.t("algorithm.salt", { length: saltLength(params) ?? pss.saltLength });
     return `${nameOf(pss.hashAlgorithm.algorithmId, HASH_ALG_NAMES)}, ${mask}, ${salt}`;
   } catch {
@@ -48,10 +46,7 @@ function pssText(params: Sequence, i18n: Pick<I18nText, "t">): string | undefine
   }
 }
 
-/**
- * The algorithm's name followed by its decoded parameters: "RSASSA-PSS (SHA-256, MGF1/SHA-256,
- * salt 32)", "ECDSA (P-256)"; NULL and parameters that do not decode add nothing.
- */
+/** Names an algorithm with its curve or RSASSA-PSS parameters. */
 export function formatAlgorithm(
   algorithm: pkijs.AlgorithmIdentifier,
   names: Record<string, string>,
@@ -68,7 +63,7 @@ export function formatAlgorithm(
   return detail === undefined ? base : `${base} (${detail})`;
 }
 
-/** An RSA key's modulus size in bits, or an EC key's curve name; neither for any other key. */
+/** The RSA modulus size or the EC curve of a public key. */
 export function publicKeyInfo(spki: pkijs.PublicKeyInfo): { bits?: number; curve?: string } {
   const key: unknown = spki.parsedKey;
   if (key instanceof pkijs.RSAPublicKey) {
@@ -82,10 +77,7 @@ export function publicKeyInfo(spki: pkijs.PublicKeyInfo): { bits?: number; curve
   return {};
 }
 
-/**
- * The bits of an implicitly tagged BIT STRING whose raw contents PKIjs keeps (a unique ID): the
- * octets after the unused-bit count, in hex; undefined when absent.
- */
+/** A unique identifier BIT STRING as hex, without its unused-bits octet. */
 export function uniqueIdHex(content: ArrayBuffer | undefined): string | undefined {
   return content && content.byteLength > 0
     ? toUpperHex(new Uint8Array(content).subarray(1))

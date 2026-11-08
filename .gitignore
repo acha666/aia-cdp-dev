@@ -1,24 +1,17 @@
-# Dependencies; pnpm creates .pnpm-store/ when the checkout is a mount of its own (devcontainer)
 node_modules/
 .pnpm-store/
 
-# Build output
 dist/
 
-# Wrangler state, the bindings types `pnpm run types` writes to .wrangler/types/ (regenerated
-# before typecheck and lint) and local data (dev:node writes to .data/)
 .wrangler/
 .data/
 
-# Environment and secrets
 .env*.local
 .dev.vars*
 !.dev.vars.example
 
-# Logs
 *.log
 
-# IDE
 .vscode/
 .idea/
 *.iml
@@ -26,6 +19,5 @@ dist/
 *.swo
 *~
 
-# OS files
 .DS_Store
 Thumbs.db

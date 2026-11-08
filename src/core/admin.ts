@@ -1,13 +1,8 @@
-// Configuration rules and apply. The rules V1–V9 come in three layers:
-// - static (V1–V3, V4 / V6 static parts): the document alone. validateConfig without a context
-//   runs only this layer, as the CLI's offline `config validate` does.
-// - state (V4 / V6 catalog parts, V5): against catalog.json, at apply time only.
-// - migration (V7, V9): against the current config.json, at apply time only.
-// There is no V8: removing a target from config.json retires it (see checkConfigMigration).
-// There is no rebind ledger either: V7 compares with the current config only, so a `/ca/` path
-// removed by one apply and re-added for another certificate by a later one is not detected.
-// Certificate downloads are cached immutable for a year, so a new CA certificate needs a new path;
-// that is the operator's responsibility.
+/**
+ * Validation and conditional replacement of `config.json`.
+ *
+ * @packageDocumentation
+ */
 import type { z } from "zod";
 import {
   certificateReferences,
@@ -21,9 +16,21 @@ import type { Catalog, Config, CrlKind } from "./catalog.ts";
 import { sha256Hex } from "./digest.ts";
 import type { ObjectStore } from "./store.ts";
 
-/** One configuration violation (`details.issues[]` of config_invalid). */
+/**
+ * One reason a config is rejected. `rule` names the check that failed:
+ *
+ * - V1: the document does not match the schema.
+ * - V2: a path is not `/ca/`, `/crl/` or `/dcrl/` followed by safe segments, or ends in `.pem`.
+ * - V3: a path's prefix does not match what it serves: `/ca/` a certificate, `/crl/` a full
+ *   CRL target, `/dcrl/` a delta CRL target.
+ * - V4: a path names an unknown target, or a certificate that has not been imported.
+ * - V5: a target's issuer has no Subject Key Identifier, so no CRL can be matched to it.
+ * - V6: two targets of the same kind share an issuer, or issuers with the same Subject Key
+ *   Identifier.
+ * - V7: a `/ca/` path changes to another certificate, which clients may have cached for a year.
+ * - V9: a target changes its issuer or kind.
+ */
 export interface ConfigIssue {
-  /** Keys from the document root; [] for the whole document. */
   path: (string | number)[];
   rule: "V1" | "V2" | "V3" | "V4" | "V5" | "V6" | "V7" | "V9";
   message: string;
@@ -31,15 +38,10 @@ export interface ConfigIssue {
 
 export type ConfigCheck = { ok: true; config: Config } | { ok: false; issues: ConfigIssue[] };
 
-// Stable, so issues of one rule keep the document's order.
 function byRule(issues: ConfigIssue[]): ConfigIssue[] {
   return issues.sort((a, b) => (a.rule < b.rule ? -1 : a.rule > b.rule ? 1 : 0));
 }
 
-// Static layer -----------------------------------------------------------------------------------
-
-// V2: the character set is the canonical form, so "unique after normalization" is just unique
-// keys. Case-sensitive, matched exactly by the download routes.
 const PATH_SYNTAX = /^\/(?:ca|crl|dcrl)(?:\/[A-Za-z0-9._~-]+)+$/;
 const PATH_PREFIX = /^\/(ca|crl|dcrl)\//;
 
@@ -49,6 +51,7 @@ const PATH_SYNTAX_MESSAGE =
   "Expected /ca/, /crl/ or /dcrl/ followed by segments of [A-Za-z0-9._~-] " +
   "(no empty segment, trailing /, % or other character)";
 
+// `.pem` is reserved for the PEM variant of every path.
 function pathSyntaxProblem(path: string): string | undefined {
   if (!PATH_SYNTAX.test(path)) {
     return PATH_SYNTAX_MESSAGE;
@@ -70,7 +73,6 @@ function staticIssues(config: Config): ConfigIssue[] {
     if (problem !== undefined) {
       issues.push({ path: at, rule: "V2", message: problem });
     }
-    // V3 needs the prefix only; a path with an unknown prefix is V2's alone.
     const prefix = PATH_PREFIX.exec(path)?.[1];
     if ("certificate" in entry) {
       if (prefix !== undefined && prefix !== "ca") {
@@ -107,7 +109,6 @@ function staticIssues(config: Config): ConfigIssue[] {
       }
     }
   }
-  // V6, static part: one target per (issuer, kind).
   const seen = new Map<string, string>();
   for (const [id, target] of Object.entries(config.targets)) {
     const slot = `${target.issuer}/${target.kind}`;
@@ -125,12 +126,11 @@ function staticIssues(config: Config): ConfigIssue[] {
   return issues;
 }
 
-/** The V1 issues of a failed ConfigSchema parse. */
+/** Turns schema errors into V1 issues. */
 export function schemaIssues(error: z.ZodError): ConfigIssue[] {
   return error.issues.map((issue) => ({
     path: issue.path.map((key) => (typeof key === "symbol" ? String(key) : key)),
     rule: "V1",
-    // zod reports a bad record key as "Invalid key in record"; say what is wrong with it.
     message:
       issue.code === "invalid_key"
         ? `Invalid key: ${issue.issues.map((inner) => inner.message).join("; ")}`
@@ -138,13 +138,7 @@ export function schemaIssues(error: z.ZodError): ConfigIssue[] {
   }));
 }
 
-// State layer ------------------------------------------------------------------------------------
-
-/**
- * V4 (referenced certificates are imported), V5 (a target's issuer has an SKI: CRLs are matched to
- * issuers by AKI = SKI) and V6's catalog part (two certificates with one SKI, e.g. a renewal on the
- * same key, must not each have a target of the same kind, or a CRL could not be attributed).
- */
+/** Rules that depend on the catalog (V4, V5, V6). */
 function checkConfigState(config: Config, catalog: Catalog): ConfigIssue[] {
   const issues: ConfigIssue[] = certificateReferences(config)
     .filter(({ id }) => catalog.certificates[id] === undefined)
@@ -158,7 +152,6 @@ function checkConfigState(config: Config, catalog: Catalog): ConfigIssue[] {
     const at = ["targets", id, "issuer"];
     const issuer = catalog.certificates[target.issuer];
     if (issuer === undefined) {
-      // V4, reported above.
       continue;
     }
     const subjectKeyId = issuer.summary.subjectKeyId;
@@ -187,19 +180,7 @@ function checkConfigState(config: Config, catalog: Catalog): ConfigIssue[] {
   return issues;
 }
 
-// Migration layer --------------------------------------------------------------------------------
-
-/**
- * V7 (a `/ca/` path in both configs keeps its certificate) and V9 (a target id in both keeps its
- * issuer and kind: one certificate verifies its current CRL and history); [] without `current`.
- *
- * Removing a target retires it whatever the catalog holds for it: downloads, lists and uploads look
- * only at config.json's targets, so nothing serves it and its CRLs get target_not_configured; the
- * catalog keeps its last current as history and to protect its verifier from deletion. Adding the
- * id back serves that current again, so a target that publishes again gets a new id
- * (`aia new-target-id`). Like a rebound `/ca/` path, an id re-added with another issuer or kind by
- * a later apply is not detected.
- */
+/** Rules that compare with the config being replaced (V7, V9). */
 function checkConfigMigration(config: Config, current: Config | undefined): ConfigIssue[] {
   if (current === undefined) {
     return [];
@@ -238,17 +219,14 @@ function checkConfigMigration(config: Config, current: Config | undefined): Conf
   return issues;
 }
 
-// Whole ------------------------------------------------------------------------------------------
-
 export interface ValidationContext {
   catalog: Catalog;
-  /** The current config.json; omitted when missing or not valid, which skips V7 and V9. */
   current?: Config | undefined;
 }
 
 /**
- * Every violation at once, ordered by rule. When V1 (ConfigSchema) fails nothing else runs: the
- * other rules need a well-formed document. The state and migration rules run only with `context`.
+ * Validates a config document. Without `context`, only the rules that need no store state
+ * run, which is what offline validation uses.
  */
 export function validateConfig(value: unknown, context?: ValidationContext): ConfigCheck {
   const parsed = ConfigSchema.safeParse(value);
@@ -268,22 +246,15 @@ export function validateConfig(value: unknown, context?: ValidationContext): Con
   return issues.length === 0 ? { ok: true, config } : { ok: false, issues };
 }
 
-// Apply ------------------------------------------------------------------------------------------
-
-/**
- * `ifMatch` is the unquoted config ETag (the SHA-256 hex of the stored config.json bytes);
- * `ifNoneMatch: "*"` is for the first configuration.
- */
 export type ConfigPrecondition =
   { ifMatch: string; ifNoneMatch?: never } | { ifNoneMatch: "*"; ifMatch?: never };
 
 export type ApplyConfigResult =
-  /** `sha256` of the bytes written: the new HTTP ETag. */
   | { config: Config; sha256: string }
   | { error: "precondition_failed" }
   | { error: "config_invalid"; details: { issues: ConfigIssue[] } };
 
-// Lenient: a current config that is not JSON or not valid stays replaceable and only skips V7 / V9.
+// An invalid stored config can still be replaced; the migration rules are skipped.
 function parseCurrent(bytes: Uint8Array): Config | undefined {
   try {
     return ConfigSchema.parse(decodeJson(bytes));
@@ -293,11 +264,9 @@ function parseCurrent(bytes: Uint8Array): Config | undefined {
 }
 
 /**
- * Replaces config.json; throws when catalog.json is invalid. The precondition is checked against
- * the SHA-256 of the stored bytes, so a config broken by an out-of-band write stays replaceable
- * after a GET returned it as is. A lost conditional write is precondition_failed, not retried.
- * The catalog is not re-read before the write: a publish or a certificate deletion in between is
- * the accepted cross-object window (one operator at a time).
+ * Replaces `config.json` if `precondition` holds and the new config is valid.
+ *
+ * `ifMatch` is the SHA-256 of the stored config, as served by `GET /admin/config`.
  */
 export async function applyConfig(
   deps: { store: ObjectStore },

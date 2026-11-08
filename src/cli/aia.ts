@@ -1,13 +1,9 @@
-// aia: the command-line client of the admin API and the CRL upload route. A thin HTTP client using
-// Commander and fetch. This file declares the command tree; Commander parses the arguments and
-// generates help. client.ts holds the service access and the token rules, commands.ts the commands.
-//
-//   node src/cli/aia.ts <command> …          (pnpm aia …; Node runs the source)
-//   node dist/server/cli/aia.js <command> …  (the Docker image)
-//
-// main(argv, io) does all I/O through `io`, so tests inject fetch = app.request. Exit codes: 0
-// success, 1 the operation failed (or the service is not healthy), 2 usage error. Tokens are never
-// printed, and go over plain http:// only to a loopback host or with --allow-insecure-http.
+/**
+ * The `aia` command line client for the admin API and CRL uploads.
+ *
+ * @packageDocumentation
+ */
+
 import { readFile, writeFile } from "node:fs/promises";
 import process from "node:process";
 import { Command, CommanderError } from "commander";
@@ -35,7 +31,11 @@ interface Options {
   json?: boolean;
 }
 
-/** A fresh command tree per invocation: options and injected I/O never leak between runs. */
+/**
+ * Runs the CLI with `argv` (without the node and script arguments).
+ *
+ * @returns The exit code: 0 success, 1 failure, 2 usage error.
+ */
 export async function main(argv: readonly string[], io: CliIo): Promise<number> {
   let code = 0;
   const program = new Command()
@@ -58,7 +58,7 @@ export async function main(argv: readonly string[], io: CliIo): Promise<number> 
     .configureOutput({
       writeOut: io.stdout,
       writeErr: () => {
-        // The catch below reports usage errors once, with the CLI's prefix and exit code.
+        // Errors are reported once, as the usage message below.
       },
     })
     .exitOverride()
@@ -71,7 +71,6 @@ export async function main(argv: readonly string[], io: CliIo): Promise<number> 
       }
     });
 
-  // Command handlers share Context first; Commander supplies their positional arguments.
   const action =
     <Args extends unknown[]>(run: (ctx: Context, ...args: Args) => number | Promise<number>) =>
     async (...args: Args): Promise<void> => {
@@ -99,16 +98,14 @@ export async function main(argv: readonly string[], io: CliIo): Promise<number> 
   config.command("show").description("Print the stored config.json").action(action(configShow));
   config
     .command("validate <file>")
-    .description("Validate offline: V1-V3 and static parts of V4 / V6; apply checks the rest")
+    .description("Validate a config file offline; apply also checks it against the stored state")
     .action(action(configValidate));
   config
     .command("apply <file>")
     .summary("Validate, then replace config.json as a whole")
     .description(
-      "Validate, then replace config.json using the ETag of a fresh GET (If-None-Match: * " +
-        "for the first configuration). Overwrites changes you have not seen; the precondition " +
-        "only catches changes between this command's GET and PUT. Removing a target retires " +
-        "it: nothing serves it, its history stays."
+      "Validate, then replace config.json as a whole, overwriting any change made since you " +
+        "last read it. A removed target is no longer served; its history is kept."
     )
     .action(action(configApply));
 
@@ -139,7 +136,7 @@ export async function main(argv: readonly string[], io: CliIo): Promise<number> 
     );
   program
     .command("delete-certificate <id>")
-    .description("Delete an unreferenced certificate (a current CRL's verifier stays referenced)")
+    .description("Delete a certificate that nothing references")
     .action(action(deleteCertificate));
   program
     .command("health")
@@ -171,9 +168,7 @@ export async function main(argv: readonly string[], io: CliIo): Promise<number> 
   }
 }
 
-// Entry ------------------------------------------------------------------------------------------
-
-/** The real process: global fetch, process.env, stdout / stderr and the file system. */
+/** The real process environment, console and file system. */
 export function processIo(): CliIo {
   return {
     fetch: (url, init) => fetch(url, init),
@@ -189,10 +184,8 @@ export function processIo(): CliIo {
   };
 }
 
-// Only as a program (node src/cli/aia.ts, node dist/server/cli/aia.js): importing the module
-// (tests, scripts/seed-dev.ts) runs nothing.
 if (import.meta.main) {
-  // `aia config show | head`: a reader that stops early closes the pipe, which is no error.
+  // A closed pipe (`aia ... | head`) is not an error.
   process.stdout.on("error", (error: NodeJS.ErrnoException) => {
     if (error.code !== "EPIPE") {
       throw error;

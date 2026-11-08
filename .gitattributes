@@ -1,3 +1,2 @@
 *.sh text eol=lf
-# Committed fixtures keep their exact bytes (full-01.crlf.pem is CRLF on purpose)
 tests/fixtures/pki/** -text

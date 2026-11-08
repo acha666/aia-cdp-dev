@@ -1,5 +1,3 @@
-// Routing rules shared by both runtimes: the /api prefix, the UI fallback, 405, the 500 envelope
-// and the secure headers. The download prefixes are tests/http/downloads.test.ts.
 import { describe, expect, it } from "vitest";
 import { createApp } from "../../src/http/app.ts";
 import { logRecords, testDeps } from "../helpers/app.ts";
@@ -11,15 +9,10 @@ const UUID = "6f1c2d3e-4b5a-4c6d-8e9f-0a1b2c3d4e5f";
 const INDEX_HTML = "<!doctype html><title>UI</title>";
 const SCRIPT = "export const ui = 1;";
 
-/**
- * A real Response whose headers are immutable, as every Workers ASSETS binding response is:
- * undici guards the headers of a fetch() response, data: URLs included (no network).
- */
 function frozen(contentType: string, body: string): Promise<Response> {
   return fetch(`data:${contentType},${encodeURIComponent(body)}`);
 }
 
-/** createApp with a deps.ui that answers index.html for every path, as the SPA assets do. */
 function setup(overrides: TestOverrides = {}) {
   const requests: Request[] = [];
   const deps = testDeps({
@@ -55,7 +48,6 @@ describe("/api", () => {
 
   it("turns an unexpected exception into the 500 envelope; the error only goes to the log", async () => {
     const { app, deps } = setup();
-    // Registered before the first request: the router is frozen afterwards.
     app.get("/api/v1/test/boom", () => {
       throw new Error("hunter2");
     });
@@ -172,7 +164,6 @@ describe("Content-Security-Policy", () => {
       expect(res.headers.get("Content-Security-Policy-Report-Only"), path).toBeNull();
       expect(res.headers.get("Strict-Transport-Security"), path).toBeNull();
     }
-    // One policy for all of them, which allows only same-origin scripts.
     expect(policies.size).toBe(1);
     expect([...policies][0]).toContain("script-src 'self';");
   });

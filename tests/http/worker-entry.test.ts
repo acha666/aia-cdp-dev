@@ -1,7 +1,3 @@
-// The Workers entry (src/runtime/worker.ts) in-process: an empty bucket as STORE, an ASSETS
-// stand-in, console.log captured. worker.ts belongs to the Worker program only (Env and
-// ExportedHandler come from `wrangler types`), so it is loaded through a variable specifier that the
-// Node program's type check does not follow; at run time it needs none of those globals.
 import { fileURLToPath } from "node:url";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { expectInternal } from "../helpers/reads.ts";
@@ -15,12 +11,10 @@ const worker = ((await import(ENTRY)) as { default: WorkerEntry }).default;
 
 const CTX = { waitUntil: () => undefined, passThroughOnException: () => undefined, props: {} };
 
-// restoreMocks (vitest.config.ts) restores console.log after each test.
 beforeEach(() => {
   vi.spyOn(console, "log").mockImplementation(() => undefined);
 });
 
-/** GET /api/v1/health with a new env object (the entry caches one app per env). */
 function health(vars: Record<string, unknown>): Promise<Response> {
   const env = {
     STORE: { get: () => Promise.resolve(null) },
@@ -30,7 +24,6 @@ function health(vars: Record<string, unknown>): Promise<Response> {
   return Promise.resolve(worker.fetch(new Request("https://pki.example/api/v1/health"), env, CTX));
 }
 
-/** The JSON lines the entry logged. */
 function records(): Record<string, unknown>[] {
   return vi
     .mocked(console.log)

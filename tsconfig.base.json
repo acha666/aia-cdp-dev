@@ -1,17 +1,10 @@
 {
-  // Shared options only; never compiled directly. Each leaf sets types and include; only
-  // tsconfig.build.json emits.
   "compilerOptions": {
     "noEmit": true,
     "target": "ES2024",
-    // ESNext.TypedArrays: Uint8Array toBase64 / fromBase64 / toHex / fromHex, which workerd and
-    // Node 26 have (core/pki/pem.ts, core/digest.ts; asn1.test uses fromHex).
     "lib": ["ES2024", "ESNext.TypedArrays"],
     "module": "NodeNext",
     "moduleDetection": "force",
-    // Relative imports carry a .ts extension: Node 26 runs the sources directly (type stripping)
-    // and tsc -p tsconfig.build.json rewrites them to .js. Only erasable syntax (no enum,
-    // namespace or constructor parameter properties) and explicit `import type`.
     "allowImportingTsExtensions": true,
     "verbatimModuleSyntax": true,
     "erasableSyntaxOnly": true,
@@ -21,8 +14,6 @@
     "noImplicitOverride": true,
     "noImplicitReturns": true,
     "noFallthroughCasesInSwitch": true,
-    // pkijs and wrangler declaration files do not type-check cleanly on their own.
     "skipLibCheck": true
-    // exactOptionalPropertyTypes stays off: the generated shadcn-vue components fail it.
   }
 }

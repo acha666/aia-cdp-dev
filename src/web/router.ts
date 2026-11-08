@@ -3,16 +3,11 @@ import type { RouteRecordRaw, RouterHistory, RouterScrollBehavior } from "vue-ro
 import NotFoundPage from "@/pages/NotFoundPage.vue";
 import OverviewPage from "@/pages/OverviewPage.vue";
 
-// Detail routes only match well-formed ids in the lowercase form the API sends (`sensitive`: the
-// router ignores case by default): a certificate id is the SHA-256 of the DER, a target id a UUID.
-// Anything else is NotFoundPage and never reaches a fetch: hono/client puts path parameters into
-// the URL unencoded, so `../crls` would otherwise request /api/v1/crls.
 const CERTIFICATE_ID = "[0-9a-f]{64}";
 const TARGET_ID = "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}";
 
 const routes: RouteRecordRaw[] = [
   { path: "/", name: "overview", component: OverviewPage },
-  // Detail pages are lazy-loaded (their own chunks); route params arrive as props.
   {
     path: `/certificates/:id(${CERTIFICATE_ID})`,
     name: "certificate",
@@ -30,10 +25,7 @@ const routes: RouteRecordRaw[] = [
   { path: "/:pathMatch(.*)*", name: "not-found", component: NotFoundPage },
 ];
 
-// Without a scrollBehavior a link keeps the previous page's offset: a page whose data is cached
-// renders at full height at once and opens scrolled down (on a phone, at its footer). Back and
-// forward return to where the page was; a fragment (the skip link) and a change of only the query
-// or fragment stay on the page.
+/** Restores the saved position on back and forward, and keeps it while the path stays the same. */
 const scrollBehavior: RouterScrollBehavior = (to, from, saved) => {
   if (saved) {
     return saved;
@@ -44,7 +36,6 @@ const scrollBehavior: RouterScrollBehavior = (to, from, saved) => {
   return to.path === from.path ? false : { top: 0 };
 };
 
-/** Tests pass `createMemoryHistory()`; the app uses the HTML5 history (the server has an SPA fallback). */
 export function createAppRouter(history: RouterHistory = createWebHistory()) {
   return createRouter({ history, routes, scrollBehavior });
 }

@@ -1,6 +1,6 @@
 import { computed, shallowRef } from "vue";
 
-/** Editing text or selecting a file replaces the previous upload source. */
+/** The CRL to upload: pasted PEM text or a chosen file, whichever came last. */
 export function useCrlUploadInput() {
   const input = shallowRef<string | File>("");
   const text = computed({

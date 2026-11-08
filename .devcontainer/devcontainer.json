@@ -17,7 +17,6 @@
   },
   "customizations": {
     "vscode": {
-      // Root config files fold under the file they belong to in the Explorer.
       "settings": {
         "explorer.fileNesting.enabled": true,
         "explorer.fileNesting.expand": false,

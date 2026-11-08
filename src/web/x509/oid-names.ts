@@ -1,5 +1,9 @@
-// Names the certificate and CRL views show for OIDs, bits and codes. The tables the server also
-// uses (signature, key, hash and curve algorithms) stay in core/pki/constants.ts.
+/**
+ * Display names of OIDs.
+ *
+ * @packageDocumentation
+ */
+
 import {
   CURVE_NAMES,
   HASH_ALG_NAMES,
@@ -7,10 +11,7 @@ import {
   SIGNATURE_ALG_NAMES,
 } from "../../core/pki/constants.ts";
 
-/**
- * DN attribute types. Name.rfc4514 labels an attribute with `short` when set, else with `name`:
- * title, description, businessCategory and postalCode have no short label, as with OpenSSL.
- */
+/** Name attribute types, with the RFC 4514 short names where there are any. */
 export const OID_DICTIONARY: Record<string, { short?: string; name: string }> = {
   "2.5.4.3": { short: "CN", name: "commonName" },
   "2.5.4.4": { short: "SN", name: "surname" },
@@ -144,7 +145,6 @@ export const KEY_USAGE_FLAGS = [
   "decipherOnly",
 ];
 
-/** ReasonFlags bit names (RFC 5280 §4.2.1.13), indexed by bit position. */
 export const REASON_FLAGS = [
   "unused",
   "keyCompromise",
@@ -211,7 +211,6 @@ export const CERTIFICATE_POLICY_NAMES: Record<string, string> = {
   "1.3.6.1.4.1.311.21.10": "Microsoft Application Policies",
 };
 
-/** otherName type identifiers whose value is a single string. */
 export const OTHER_NAME_TYPES: Record<string, string> = {
   "1.3.6.1.4.1.311.20.2.3": "userPrincipalName",
   "1.3.6.1.4.1.311.25.1": "ntdsReplication",
@@ -238,7 +237,7 @@ export const QC_STATEMENT_NAMES: Record<string, string> = {
   "0.4.0.1862.1.6": "QcType",
 };
 
-/** Aggregate lookup used by the generic ASN.1 dump to annotate object identifiers. */
+/** Every name above by OID, for the ASN.1 dump. */
 export const KNOWN_OID_NAMES: Record<string, string> = {
   ...Object.fromEntries(Object.entries(OID_DICTIONARY).map(([oid, entry]) => [oid, entry.name])),
   ...SIGNATURE_ALG_NAMES,
@@ -257,6 +256,6 @@ export const KNOWN_OID_NAMES: Record<string, string> = {
   "1.3.6.1.4.1.311.25.2.1": "ntdsObjectSid",
 };
 
-/** An OID's name from `names`, else from OID_DICTIONARY; undefined when it has none. */
+/** Looks an OID up in `names`, then among the name attribute types. */
 export const oidName = (oid: string, names?: Record<string, string>): string | undefined =>
   names?.[oid] ?? OID_DICTIONARY[oid]?.name;

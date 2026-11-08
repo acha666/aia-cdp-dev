@@ -1,28 +1,16 @@
-// The read model of the public API: the certificate and CRL target lists, built from config.json
-// and catalog.json (one `get` each per request, through readState in ./catalog.ts), and the blob a
-// SHA-256 names. Their shapes are the response schemas of src/http/schemas.ts, against which the
-// routes type-check every view. Ids and kinds come from the catalog and config, never from a store
-// key, and a store key never appears in a view. Nothing here decodes a certificate or a CRL: the UI
-// decodes the blob itself.
-//
-// Lists are complete arrays (no pagination), certificates in id order and targets in targetId
-// order (code units; the UI sorts for display).
-//
-// What the catalog and config name but the store cannot back throws, and the HTTP layer answers
-// its generic 500: never a 404, an empty list or a partial 200.
+/**
+ * Read models for the public API, sorted by id so responses are stable.
+ *
+ * @packageDocumentation
+ */
+
 import type { Catalog, Config } from "./catalog.ts";
 import { downloadPaths } from "./resources.ts";
 
-// Helpers -----------------------------------------------------------------------------------------
-
-/** The entries of a record in key order (code units; keys are unique). */
 function sortedEntries<T>(record: Record<string, T>): [string, T][] {
   return Object.entries(record).sort(([a], [b]) => (a < b ? -1 : 1));
 }
 
-// Certificates ------------------------------------------------------------------------------------
-
-/** GET /api/v1/certificates: one item per catalog certificate, in id order. */
 export function certificateList(config: Config, catalog: Catalog) {
   return sortedEntries(catalog.certificates).map(([id, entry]) => ({
     id,
@@ -37,12 +25,7 @@ export function certificateList(config: Config, catalog: Catalog) {
   }));
 }
 
-// CRL targets -------------------------------------------------------------------------------------
-
-/**
- * GET /api/v1/crls: one item per configured target, in targetId order. A catalog current whose
- * target config.json no longer defines is not listed (no kind, no paths).
- */
+/** @throws Error if a target's issuer is not in the catalog. */
 export function crlTargetList(config: Config, catalog: Catalog) {
   return sortedEntries(config.targets).map(([targetId, target]) => {
     const issuer = catalog.certificates[target.issuer];
@@ -76,13 +59,7 @@ export function crlTargetList(config: Config, catalog: Catalog) {
   });
 }
 
-// Blobs -------------------------------------------------------------------------------------------
-
-/**
- * GET /api/v1/blobs/{sha256}: the store key and kind of the catalog certificate with this id, or of
- * the current CRL of a configured target with this SHA-256; undefined for anything else (a history
- * version, a current whose target config.json no longer defines).
- */
+/** Finds a served certificate or current CRL by the SHA-256 of its DER. */
 export function findBlob(
   config: Config,
   catalog: Catalog,

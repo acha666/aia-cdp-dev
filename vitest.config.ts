@@ -4,8 +4,6 @@ import { configDefaults, defineConfig } from "vitest/config";
 
 const webRoot = fileURLToPath(new URL("./src/web", import.meta.url));
 
-// Standalone: vite.config.ts (root: src/web) is not merged when this file exists. Before every test,
-// spies are restored and stubbed globals and env variables undone (both projects).
 export default defineConfig({
   test: {
     restoreMocks: true,
@@ -20,14 +18,10 @@ export default defineConfig({
         },
       },
       {
-        // Own Vite server (plugins / alias); the only project with a DOM.
         plugins: [vue()],
         resolve: { alias: { "@": webRoot } },
-        // The page tests import fixture DER as data URLs (`?inline`), which Vite's default
-        // fs.deny refuses.
         assetsInclude: ["**/*.der"],
         server: { fs: { deny: [".env", ".env.*", "**/.git/**"] } },
-        // vite.config.ts's vue-i18n flags, so tests run the same vue-i18n features as the build.
         define: {
           __VUE_I18N_LEGACY_API__: false,
           __VUE_I18N_FULL_INSTALL__: false,

@@ -1,5 +1,8 @@
-// Small ASN.1 readers shared by upload checks and display adapters. readOne accepts BER;
-// readDer additionally enforces DER. Callers use end() when trailing fields must be rejected.
+/**
+ * A small strict DER reader for extension values, built on asn1js blocks.
+ *
+ * @packageDocumentation
+ */
 import { fromBER, Integer, ObjectIdentifier } from "asn1js";
 import type { BaseBlock } from "asn1js";
 import { asciiOf, assertWellFormed, integerNumber } from "./asn1.ts";
@@ -8,7 +11,6 @@ import { encodeTlv } from "./pem.ts";
 export interface Tag {
   readonly cls: number;
   readonly num: number;
-  /** As the ASN.1 dump writes it (SEQUENCE, [0]), for error messages. */
   readonly name: string;
 }
 
@@ -29,8 +31,9 @@ export function hasTag(block: BaseBlock, tag: Tag): boolean {
 }
 
 /**
- * Exactly one element filling `bytes`, as asn1js decodes it: BER is let through (an extnValue
- * holds the encoding of one value; trailing bytes are an error).
+ * Decodes exactly one ASN.1 element.
+ *
+ * @throws Error on errors or trailing bytes.
  */
 export function readOne(bytes: Uint8Array): BaseBlock {
   const parsed = fromBER(bytes);
@@ -40,14 +43,13 @@ export function readOne(bytes: Uint8Array): BaseBlock {
   return parsed.result;
 }
 
-/** readOne, and DER throughout (assertWellFormed). */
+/** Like {@link readOne}, and also requires DER. */
 export function readDer(bytes: Uint8Array): BaseBlock {
   const block = readOne(bytes);
   assertWellFormed(block);
   return block;
 }
 
-/** `block` itself when it has this tag. */
 export function expectTag(block: BaseBlock, tag: Tag): BaseBlock {
   if (!hasTag(block, tag)) {
     throw new Error(`Expected ${tag.name}`);
@@ -55,12 +57,12 @@ export function expectTag(block: BaseBlock, tag: Tag): BaseBlock {
   return block;
 }
 
-/** An implicitly tagged primitive as the universal type `tag` ([0] IMPLICIT GeneralizedTime). */
+/** Re-reads an implicitly tagged primitive as the universal type `tag`. */
 export function asUniversal(block: BaseBlock, tag: Tag): BaseBlock {
   return readOne(encodeTlv(tag.num, [contents(block)]));
 }
 
-/** The contents octets of a primitive element, also when it is implicitly tagged. */
+/** Returns the content octets of a primitive element. */
 export function contents(block: BaseBlock): Uint8Array {
   if (block.idBlock.isConstructed) {
     throw new Error("Expected a primitive ASN.1 element");
@@ -70,7 +72,7 @@ export function contents(block: BaseBlock): Uint8Array {
   );
 }
 
-/** The elements of one constructed value, read in order. */
+/** Reads the elements of a constructed value in order. */
 export class DerReader {
   readonly #items: readonly BaseBlock[];
   #next = 0;
@@ -83,11 +85,7 @@ export class DerReader {
     this.#items = value as BaseBlock[];
   }
 
-  /**
-   * The next element when it has this tag (an OPTIONAL or DEFAULT field), else undefined; without
-   * a tag, the next element whatever its tag (an OPTIONAL CHOICE or ANY that ends the value). With
-   * `read`, the value it decodes from that element.
-   */
+  /** Consumes the next element if it has `tag` (or any tag), optionally mapping it. */
   optional(tag?: Tag): BaseBlock | undefined;
   optional<T>(tag: Tag, read: (block: BaseBlock) => T): T | undefined;
   optional<T>(tag?: Tag, read?: (block: BaseBlock) => T): BaseBlock | T | undefined {
@@ -99,7 +97,6 @@ export class DerReader {
     return read ? read(item) : item;
   }
 
-  /** The next element, which must have this tag. */
   read(tag: Tag): BaseBlock {
     const item = this.optional(tag);
     if (item === undefined) {
@@ -108,7 +105,6 @@ export class DerReader {
     return item;
   }
 
-  /** The next element, whatever its tag (a CHOICE or an ANY). */
   any(): BaseBlock {
     const item = this.optional();
     if (item === undefined) {
@@ -117,7 +113,7 @@ export class DerReader {
     return item;
   }
 
-  /** The remaining elements of a SEQUENCE OF / SET OF, at least `min` of them. */
+  /** Consumes the remaining elements, requiring at least `min`. */
   rest(min = 1): BaseBlock[] {
     const items = this.#items.slice(this.#next);
     if (items.length < min) {
@@ -127,7 +123,7 @@ export class DerReader {
     return items;
   }
 
-  /** Throws when an element is left over. */
+  /** @throws Error if elements are left. */
   end(): void {
     if (this.#next !== this.#items.length) {
       throw new Error("Unexpected ASN.1 element");
@@ -135,12 +131,12 @@ export class DerReader {
   }
 }
 
-/** The elements of a SEQUENCE OF (or an implicitly tagged one), at least `min` of them. */
+/** Reads a `SEQUENCE OF` (or another constructed `tag`) with at least `min` elements. */
 export function sequenceOf(block: BaseBlock, tag: Tag = SEQUENCE, min = 1): BaseBlock[] {
   return new DerReader(block, tag).rest(min);
 }
 
-/** The one element under an EXPLICIT tag (a CHOICE or an ANY under [n]). */
+/** Unwraps an explicitly tagged element. */
 export function explicit(block: BaseBlock, tag: Tag): BaseBlock {
   const wrapper = new DerReader(block, tag);
   const item = wrapper.any();
@@ -148,7 +144,6 @@ export function explicit(block: BaseBlock, tag: Tag): BaseBlock {
   return item;
 }
 
-/** A BER BOOLEAN for display: one contents octet, any nonzero value means true. */
 export function readBoolean(block: BaseBlock): boolean {
   const bytes = contents(block);
   if (bytes.length !== 1) {
@@ -157,7 +152,6 @@ export function readBoolean(block: BaseBlock): boolean {
   return bytes[0] !== 0;
 }
 
-/** INTEGER contents (also implicitly tagged) as an asn1js Integer, at least one octet. */
 function integerOf(block: BaseBlock): Integer {
   const bytes = contents(block);
   if (bytes.length === 0) {
@@ -166,16 +160,13 @@ function integerOf(block: BaseBlock): Integer {
   return new Integer({ valueHex: bytes });
 }
 
-/** INTEGER contents as a number; beyond a safe integer it is an error. */
 export const readInteger = (block: BaseBlock): number => integerNumber(integerOf(block));
 
-/** INTEGER contents as a bigint, of any length (CRL numbers, notice numbers). */
 export const readBigInt = (block: BaseBlock): bigint => integerOf(block).toBigInt();
 
-/** BIT STRING contents as the names of its set bits; the first octet counts the unused bits. */
+/** Reads a named BIT STRING, returning the names of the bits that are set. */
 export function readBits(block: BaseBlock, names: readonly string[]): string[] {
   const [unused = 8, ...bytes] = contents(block);
-  // X.690 §11.2.1: the unused bits of the last octet are zero.
   const padding = (bytes.at(-1) ?? 0) & ((1 << unused) - 1);
   if (unused > 7 || (bytes.length === 0 && unused !== 0) || padding !== 0) {
     throw new Error("Invalid BIT STRING");
@@ -186,7 +177,6 @@ export function readBits(block: BaseBlock, names: readonly string[]): string[] {
   );
 }
 
-/** OBJECT IDENTIFIER contents (also implicitly tagged, as registeredID) as dotted text. */
 export function readOid(block: BaseBlock): string {
   const bytes = contents(block);
   const oid = new ObjectIdentifier();
@@ -196,5 +186,4 @@ export function readOid(block: BaseBlock): string {
   return oid.valueBlock.toString();
 }
 
-/** Contents octets as text, one character per octet (IA5String, also implicitly tagged). */
 export const readAscii = (block: BaseBlock): string => asciiOf(contents(block));

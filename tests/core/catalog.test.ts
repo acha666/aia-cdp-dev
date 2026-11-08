@@ -19,9 +19,6 @@ import { MINIMAL_CONFIG, putText } from "../helpers/app.ts";
 import { certificateEntry, currentCrl, putCatalog } from "../helpers/catalog.ts";
 import { flakyStore, puts, racingStore, recordingStore } from "../helpers/store.ts";
 
-// Schemas, canonical format, readState, and the conditional catalog write, which keeps a
-// concurrent writer's change.
-
 const TARGET = "0b6a3a8e-4f5c-4d2a-9c3e-7f1e2d3c4b5a";
 const ROOT = await certificateEntry("root-ca");
 const ISSUING = await certificateEntry("issuing-ca-1");
@@ -40,7 +37,6 @@ async function certificateIds(store: MemoryStore): Promise<string[]> {
   return Object.keys((await readCatalog(store)).catalog.certificates);
 }
 
-// Adds root-ca unless it is there (the shape importCertificate uses).
 function addRoot({ catalog: current }: State): CatalogMutation<string> {
   return current.certificates[ROOT.id]
     ? { result: "unchanged" }
@@ -182,7 +178,6 @@ describe("updateState", () => {
     await putText(base, CONFIG_KEY, MINIMAL_CONFIG);
     await putCatalog(base, emptyCatalog());
     const rival = await certificateEntry("issuing-ca-2");
-    // A rival import lands between the first attempt's read and its write.
     const store = recordingStore(
       racingStore(base, () => putCatalog(base, catalog({ [rival.id]: rival.entry })))
     );

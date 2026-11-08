@@ -1,7 +1,3 @@
-// The three pages on a stubbed fetch: what the overview, a certificate and a CRL target show, and
-// their loading / error / not-found / unpublished states. Bodies come from ./helpers (fixture facts
-// from tests/fixtures/pki, the detail pages' DER from the fixture files); the clock is manifest.now
-// unless a case moves it.
 import { flushPromises } from "@vue/test-utils";
 import type { DOMWrapper, VueWrapper } from "@vue/test-utils";
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
@@ -21,11 +17,9 @@ import {
 import type { Handler } from "./helpers";
 import type { CertificateList, CrlTargetList } from "@/client/types";
 
-// The detail pages load the DER decoder on their first blob; loaded here, it is there at once.
 beforeAll(() => import("../../src/core/pki/parsers.ts"));
 
 beforeEach(() => {
-  // Only Date: the query timers and Vue's scheduler keep running.
   vi.useFakeTimers({ toFake: ["Date"], now: new Date(NOW) });
 });
 
@@ -76,7 +70,6 @@ describe("OverviewPage", () => {
   it("shows the counts, the certificates and the targets", async () => {
     const { wrapper } = await open("/", OVERVIEW);
 
-    // Counted from the two lists: full-adcs's 2 and full-01's 0 revocations.
     expect(stat(wrapper, "certificates")).toBe("3");
     expect(stat(wrapper, "targets")).toBe("3");
     expect(wrapper.get('[data-stat="targets"]').text()).toContain("2 full · 1 delta");
@@ -84,7 +77,6 @@ describe("OverviewPage", () => {
     expect(stat(wrapper, "revocations")).toBe("2");
     expect(stat(wrapper, "attention")).toBe("0");
 
-    // Sorted by display name: label, else subject CN, else "Unknown Certificate".
     const certificates = rows(wrapper, "certificate-table");
     expect(certificates.map((row) => row.get("a").text())).toEqual([
       "Example Issuing CA 01 (RSA)",
@@ -96,11 +88,8 @@ describe("OverviewPage", () => {
     );
     expect(certificates[1]!.text()).toContain("Example Root CA (ECC P-384)");
     expect(certificates[0]!.get('[data-state="valid"]').text()).toBe("Valid");
-    // The time left shows while valid.
     expect(certificates[0]!.get('[data-testid="remaining"]').text()).toBe("in 3,284 days");
 
-    // By label, full before delta (the API sends them by id, the delta first); the unpublished
-    // delta has dashes, not 0.
     const targets = rows(wrapper, "crl-target-table");
     expect(targets.map((row) => row.attributes("data-id"))).toEqual([
       TARGET_IDS.issuingFull,
@@ -121,20 +110,17 @@ describe("OverviewPage", () => {
     expect(targets[1]!.get('[data-testid="revoked-count"]').text()).toBe("—");
     expect(targets[1]!.get('[data-state="unpublished"]').text()).toBe("Not published");
     expect(targets[1]!.find('[data-testid="remaining"]').exists()).toBe(false);
-    // Nothing to download yet: its paths answer 404 until a CRL is published.
     expect(targets[1]!.find("a[download]").exists()).toBe(false);
     expect(targets[0]!.findAll("a[download]")).toHaveLength(2);
   });
 
   it("counts stale, expired and unknown targets as needing attention, with the badges' clock", async () => {
-    // An hour and a half after full-adcs's Next CRL Publish: stale, not yet expired.
     vi.setSystemTime(new Date("2026-01-10T13:30:00Z"));
     const { wrapper } = await open("/", OVERVIEW);
 
     expect(stat(wrapper, "attention")).toBe("1");
     const stale = rows(wrapper, "crl-target-table")[0]!;
     expect(stale.find('[data-state="stale"]').exists()).toBe(true);
-    // Relative times only while current.
     expect(stale.find('[data-testid="remaining"]').exists()).toBe(false);
   });
 
@@ -187,11 +173,9 @@ describe("OverviewPage", () => {
       "GET /api/v1/crls": () => (fail ? envelope(500, "internal") : Response.json(targetItems())),
     });
 
-    // A 5xx is retried once before the page reports it.
     await vi.waitFor(() => {
       expect(wrapper.find('[data-testid="query-error"]').exists()).toBe(true);
     });
-    // The counts fail with the list they are counted from.
     const [counts, alert] = wrapper.findAll('[data-testid="query-error"]');
     expect(counts!.text()).toContain("Could not load the statistics");
     expect(alert!.text()).toContain("Could not load the CRL targets");
@@ -225,16 +209,12 @@ describe("CertificatePage", () => {
 
     const text = wrapper.text();
     expect(text).toContain("CN=Example Root CA (ECC P-384),O=Example PKI,C=US");
-    // The algorithms with their parameters, never "Unknown"; the signature value as hex.
     expect(wrapper.get('[data-testid="signature"]').text()).toContain("ecdsa-with-SHA384");
     expect(wrapper.get('[data-testid="public-key"]').text()).toContain("ecPublicKey (P-384)");
     expect(definitions(wrapper.get('[data-testid="signature"]'))[1]![0]).toBe("Signature Value");
     expect(text).not.toContain("Unknown");
-    // The file's fingerprints come from the list item.
     expect(text).toContain(ROOT.id.slice(0, 2).toUpperCase());
-    // The status detail: time to notAfter.
     expect(wrapper.get('[data-testid="status-detail"]').text()).toBe("(in 6937d)");
-    // The targets this certificate issues.
     const target = wrapper.get('[data-testid="crl-targets"] a');
     expect(target.text()).toBe("Root CA");
     expect(target.attributes("href")).toBe(`/crls/${TARGET_IDS.rootFull}`);
@@ -283,7 +263,6 @@ describe("CrlTargetPage", () => {
   const PSS = "crls/issuing-ca-1/full-pss.der";
   const DELTA = "crls/issuing-ca-1/delta-adcs.der";
 
-  /** The target list with `targetId`'s current CRL replaced by `file` (null: unpublished). */
   function withCurrent(targetId: string, file: string | null): Record<string, Handler> {
     const list: CrlTargetList = targetItems().map((target) =>
       target.targetId === targetId
@@ -327,7 +306,6 @@ describe("CrlTargetPage", () => {
 
     expect(wrapper.get("header [data-kind]").attributes("data-kind")).toBe("delta");
     expect(wrapper.find('header [data-state="current"]').exists()).toBe(true);
-    // crls/issuing-ca-1/delta-adcs: 20 on base 19, Next CRL Publish 2026-01-04T18:00:00Z.
     expect(definitions(wrapper.get('[data-testid="crl-overview"]'))).toEqual(
       expect.arrayContaining([
         ["CRL Number", "20"],
@@ -341,8 +319,6 @@ describe("CrlTargetPage", () => {
   });
 
   it("measures a CRL that is not yet valid to its thisUpdate", async () => {
-    // Two minutes before full-pss's thisUpdate (2026-01-03T12:00:00Z): a browser clock behind the
-    // server's, or the 5 minutes of skew the server accepts.
     vi.setSystemTime(new Date("2026-01-03T11:58:00Z"));
     const { wrapper } = await open(path, pssRoutes);
 
@@ -355,7 +331,6 @@ describe("CrlTargetPage", () => {
 
     expect(api.calls()).toEqual(["GET /api/v1/crls"]);
     expect(wrapper.get("h1").text()).toBe("Issuing CA 01");
-    // The issuer link is in the header, so it stays without a CRL.
     expect(wrapper.get('[data-testid="issuer-link"]').attributes("href")).toBe(
       `/certificates/${certificateItem("issuing-ca-1").id}`
     );
@@ -363,7 +338,6 @@ describe("CrlTargetPage", () => {
     expect(wrapper.find('header [data-state="unpublished"]').exists()).toBe(true);
     expect(wrapper.find('[role="tab"]').exists()).toBe(false);
     expect(wrapper.find('[data-testid="revoked-table"]').exists()).toBe(false);
-    // Its download paths answer 404 until a CRL is published.
     expect(wrapper.find("main header a[download]").exists()).toBe(false);
   });
 

@@ -1,4 +1,3 @@
-// Shared deps for HTTP tests: createApp(testDeps()).request(...) — no sockets.
 import type { ObjectStore } from "../../src/core/store.ts";
 import type { LogRecord } from "../../src/http/log.ts";
 import type { AppDeps, AppSettings } from "../../src/http/types.ts";
@@ -6,10 +5,8 @@ import { parseSettings } from "../../src/runtime/settings.ts";
 import { MemoryStore } from "../../src/storage/memory.ts";
 import { NOW } from "../fixtures/pki.ts";
 
-/** The smallest configuration that is `ok` under the full schema. */
 export const MINIMAL_CONFIG = '{"version":1,"certificates":{},"targets":{},"paths":{}}';
 
-/** parseSettings({}): the defaults. */
 function defaultSettings(): AppSettings {
   const parsed = parseSettings({});
   if (!parsed.ok) {
@@ -18,8 +15,8 @@ function defaultSettings(): AppSettings {
   return parsed.value.app;
 }
 
+/** App dependencies with a memory store, a fixed clock and captured log lines. */
 export interface TestDeps extends AppDeps {
-  /** Every line the app logged, in order. */
   lines: string[];
 }
 
@@ -27,10 +24,6 @@ export interface TestOverrides extends Partial<Omit<AppDeps, "settings">> {
   settings?: Partial<AppSettings>;
 }
 
-/**
- * MemoryStore, the fixtures' clock (manifest.now), backoffs that do not wait, default settings and
- * a collecting log.
- */
 export function testDeps(overrides: TestOverrides = {}): TestDeps {
   const lines: string[] = [];
   return {
@@ -46,12 +39,11 @@ export function testDeps(overrides: TestOverrides = {}): TestDeps {
   };
 }
 
-/** The JSON log lines (throws on a line that is not JSON). */
 export function logRecords(deps: Pick<TestDeps, "lines">): LogRecord[] {
   return deps.lines.map((line) => JSON.parse(line) as LogRecord);
 }
 
-/** A store that delegates to `base` except for the overridden methods. */
+/** A store that replaces some methods of `base`. */
 export function patchStore(patch: Partial<ObjectStore>, base: ObjectStore = new MemoryStore()) {
   return {
     get: patch.get ?? ((key) => base.get(key)),

@@ -1,45 +1,37 @@
+/**
+ * PEM encoding and decoding, and minimal DER TLV handling.
+ *
+ * @packageDocumentation
+ */
 import { PkiParseError } from "./errors.ts";
 import type { PkiKind } from "./errors.ts";
 
-/** RFC 7468 label of each kind. */
 const PEM_LABELS: Record<PkiKind, string> = { certificate: "CERTIFICATE", crl: "X509 CRL" };
 
-/** The BEGIN and END lines of the kind's PEM block, without their line ends. */
 function boundaryLines(kind: PkiKind): [begin: string, end: string] {
   const label = PEM_LABELS[kind];
   return [`-----BEGIN ${label}-----`, `-----END ${label}-----`];
 }
 
+/** Encodes DER as PEM with 64-character lines and a trailing newline. */
 export function derToPem(bytes: Uint8Array, kind: PkiKind): string {
   const lines = bytes.toBase64().match(/.{1,64}/g) ?? [];
   const [begin, end] = boundaryLines(kind);
   return `${begin}\n${lines.join("\n")}\n${end}\n`;
 }
 
-/**
- * Length in bytes (the text is ASCII) of derToPem's output for `derSize` ≥ 1 bytes of DER, without
- * encoding them: the boundary lines, the base64 body, one LF per 64-column line and the LFs after
- * the BEGIN and END lines. Downloads take a PEM HEAD's Content-Length from it, and the `-pem` ETag
- * stands for this exact format: a change to derToPem's line width or line ending must change the
- * ETag suffix as well.
- */
+/** The exact length of {@link derToPem} output, for Content-Length without encoding. */
 export function pemLength(derSize: number, kind: PkiKind): number {
   const base64 = 4 * Math.ceil(derSize / 3);
   const [begin, end] = boundaryLines(kind);
   return begin.length + end.length + base64 + Math.ceil(base64 / 64) + 2;
 }
 
-// Upload input. The format is always recognized from the bytes; the request's content type only
-// gates 415. Storage keys and file names are never consulted, and a bundle is rejected instead of
-// silently using its first block.
-
-// An encapsulation boundary: `-----BEGIN <label>-----` or `-----END <label>-----`.
 const BOUNDARY = /-----(BEGIN|END) ([^\r\n]*?)-----/g;
 
 interface Boundary {
   type: "BEGIN" | "END";
   label: string;
-  /** Offsets of the boundary line in the text: [start, end). */
   start: number;
   end: number;
 }
@@ -53,7 +45,7 @@ function boundariesOf(text: string): Boundary[] {
   }));
 }
 
-/** One TLV of a DER input: its identifier octet, where its contents start and where it ends. */
+/** Offsets of one DER element: its start, its contents and its end. */
 export interface Tlv {
   tag: number;
   start: number;
@@ -61,22 +53,16 @@ export interface Tlv {
   end: number;
 }
 
-/**
- * The TLV at `start`, ending by `limit`, read from its identifier and length octets alone: one
- * identifier octet (a tag number up to 30, enough for every TLV the callers read) and a definite
- * length in its shortest form. Undefined otherwise.
- */
+/** Reads one definite-length DER TLV within `limit`, or returns `undefined`. */
 export function readTlv(der: Uint8Array, start: number, limit: number): Tlv | undefined {
   const tag = der[start];
   const first = der[start + 1];
-  // 0x80 is the indefinite form.
   if (tag === undefined || first === undefined || (tag & 0x1f) === 0x1f || first === 0x80) {
     return undefined;
   }
   let contents = start + 2;
   let length = first;
   if (first > 0x80) {
-    // More than four length octets describe more than any input; a leading 00 is one too many.
     const count = first & 0x7f;
     if (count > 4 || contents + count > limit || der[contents] === 0) {
       return undefined;
@@ -94,7 +80,7 @@ export function readTlv(der: Uint8Array, start: number, limit: number): Tlv | un
   return end <= limit ? { tag, start, contents, end } : undefined;
 }
 
-/** The DER TLV of `tag` (one identifier octet) around `parts`, with the shortest-form length. */
+/** Encodes a TLV from a one-byte tag and its contents. */
 export function encodeTlv(tag: number, parts: readonly Uint8Array[]): Uint8Array {
   const length = parts.reduce((sum, part) => sum + part.byteLength, 0);
   const octets: number[] = [];
@@ -112,34 +98,21 @@ export function encodeTlv(tag: number, parts: readonly Uint8Array[]): Uint8Array
   return der;
 }
 
-/**
- * Whether `bytes` is one SEQUENCE TLV with a DER header spanning all of them: toDer's test for DER
- * input, shared with the CLI, which sends such a file as is and splits anything else that holds
- * PEM boundaries.
- */
 export function isDerSequence(bytes: Uint8Array): boolean {
   const tlv = readTlv(bytes, 0, bytes.length);
   return tlv?.tag === 0x30 && tlv.end === bytes.length;
 }
 
 /**
- * The DER bytes of an uploaded certificate or CRL.
+ * Accepts DER, or exactly one PEM block with the label for `kind`. Input that is neither is
+ * returned as is, so the DER parser reports what is wrong with it.
  *
- * - One SEQUENCE TLV with a DER header spanning exactly all bytes is DER and returned as is.
- * - Otherwise the bytes are decoded as UTF-8 (a BOM and text around the block are tolerated); if
- *   that contains `-----BEGIN `, it is PEM: every boundary must carry the kind's label
- *   (`pem_label`), there must be exactly one complete block (`pem_blocks`, also for a missing END
- *   line) and its body must be base64 (`pem_base64`).
- * - Anything else is returned as is, so the strict parser reports it (`der` / `trailing_bytes`).
- *
- * Throws PkiParseError with the given kind.
+ * @throws {@link PkiParseError} for a bad PEM block.
  */
 export function toDer(bytes: Uint8Array, kind: PkiKind): Uint8Array {
   if (isDerSequence(bytes)) {
     return bytes;
   }
-  // Both options spelled out: the Workers types declare them as required. Not fatal: only the
-  // text around the block may be in another encoding, the boundaries and base64 are ASCII.
   const text = new TextDecoder("utf-8", { fatal: false, ignoreBOM: false }).decode(bytes);
   if (!text.includes("-----BEGIN ")) {
     return bytes;
@@ -158,8 +131,6 @@ export function toDer(bytes: Uint8Array, kind: PkiKind): Uint8Array {
   if (boundaries.length !== 2 || begin?.type !== "BEGIN" || end?.type !== "END") {
     throw new PkiParseError(kind, "pem_blocks", `Expected exactly one complete ${label} PEM block`);
   }
-  // Strict: full quads, `=` padding only at the end and zero padding bits; ASCII whitespace (SPACE,
-  // TAB, LF, FF, CR) may stand anywhere.
   try {
     return Uint8Array.fromBase64(text.slice(begin.end, end.start), { lastChunkHandling: "strict" });
   } catch (error) {
@@ -169,13 +140,7 @@ export function toDer(bytes: Uint8Array, kind: PkiKind): Uint8Array {
   }
 }
 
-/**
- * The complete blocks of the kind's label in a PEM bundle, in order, each as its own PEM text (the
- * CLI imports `chain.pem` one block per request). Blocks with other labels (a private key, a CRL in
- * a certificate bundle) are skipped and never sent. A BEGIN without its END, or an END without a
- * BEGIN, throws PkiParseError `pem_blocks`: a truncated bundle is not imported partially. The
- * bodies are not checked here; toDer does that for each block.
- */
+/** Splits text into its PEM blocks of `kind`, ignoring blocks with other labels. */
 export function splitPemBlocks(text: string, kind: PkiKind): string[] {
   const label = PEM_LABELS[kind];
   const blocks: string[] = [];

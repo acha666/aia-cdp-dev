@@ -1,5 +1,9 @@
-// Display text for ASN.1 values the views do not model: a bounded, flat `openssl asn1parse`-style
-// dump, and best-effort text for one value (attribute values, policy qualifiers).
+/**
+ * A readable ASN.1 dump for values the UI cannot decode.
+ *
+ * @packageDocumentation
+ */
+
 import {
   BitString,
   Boolean as Asn1Boolean,
@@ -16,6 +20,7 @@ import { asciiOf, children, readStrictTime, stringOf, tagLabel } from "../../cor
 import { toUpperHex } from "../../core/digest.ts";
 import { KNOWN_OID_NAMES } from "./oid-names";
 
+/** One element of the dump; `length` is the content length in bytes. */
 export interface Asn1Line {
   depth: number;
   tag: string;
@@ -34,7 +39,6 @@ function describeOid(oid: string): string {
   return name ? `${oid} (${name})` : oid;
 }
 
-/** Human-readable scalar for a primitive block; undefined for constructed values. */
 function primitiveText(block: BaseBlock): string | undefined {
   if (block.idBlock.isConstructed) {
     return undefined;
@@ -42,7 +46,6 @@ function primitiveText(block: BaseBlock): string | undefined {
   if (block instanceof Asn1Boolean) {
     return block.valueBlock.value ? "TRUE" : "FALSE";
   }
-  // ENUMERATED too (an asn1js Integer). Not valueDec: it is 0 from four contents octets on.
   if (block instanceof Integer) {
     return block.toBigInt().toString(10);
   }
@@ -75,18 +78,15 @@ function primitiveText(block: BaseBlock): string | undefined {
   return clip(toUpperHex(view ?? block.toBER(false)));
 }
 
+/** Bounds the dump of a hostile or very large value. */
 const DUMP_LIMITS = { maxLines: 200, maxDepth: 12 };
 
-/**
- * Flat `openssl asn1parse`-style listing of a DER value. Returns undefined when
- * the bytes are not decodable, so callers fall back to raw hex.
- */
+/** Dumps BER-decodable bytes, or returns `undefined` if they are not. */
 export function dumpAsn1(bytes: Uint8Array | ArrayBuffer): Asn1Line[] | undefined {
   let parsed: ReturnType<typeof fromBER>;
   try {
     parsed = fromBER(bytes);
   } catch {
-    // asn1js throws instead of reporting some malformed values (a GeneralizedTime string).
     return undefined;
   }
   if (parsed.offset === -1 || parsed.result.error !== "") {
@@ -113,12 +113,12 @@ export function dumpAsn1(bytes: Uint8Array | ArrayBuffer): Asn1Line[] | undefine
   return lines;
 }
 
-/** Uppercase hex of the whole encoding of `block` (as asn1js re-encodes it). */
+/** The full encoding of a block as hex. */
 export function blockHex(block: BaseBlock): string {
   return toUpperHex(block.toBER(false));
 }
 
-/** Best-effort text for an arbitrary ASN.1 value (used for attribute values and qualifiers). */
+/** A primitive's value as text, or the block's encoding as hex. */
 export function displayText(block: BaseBlock): string {
   return primitiveText(block) ?? blockHex(block);
 }
